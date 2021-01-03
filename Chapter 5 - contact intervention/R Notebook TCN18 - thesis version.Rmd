@@ -1,0 +1,327 @@
+---
+title: "TCN 2018 - impact of contact intervention on valuing diversity"
+output:
+  minidown::mini_document:
+    code_folding:
+      source: show
+      output: show
+      message: hide
+      warning: hide
+      error: show
+---
+
+
+#Data preparation
+
+## Load required packages
+```{r message = FALSE}
+pacman::p_load_current_gh("lukaswallrich/rNuggets", dependencies = FALSE)
+pacman::p_load(tidyverse, magrittr, lme4, lmerTest, ordinal)
+```
+
+## Load & filter data
+```{r}
+#Please contact Lukas Wallrich (l.wallrich@gold.ac.uk | lukas.wallrich@gmail.com) to access the data.
+AllData = readxl::read_excel('Matched 2018 Summer impact responses 081118.xlsx')
+```
+
+## Sample desc
+```{r}
+
+AllData$`Survey type1`[AllData$`Survey type1`!="FALSE"] %>% 
+  table() %>% addmargins()
+
+AllData$`Survey type2`[AllData$`Survey type2`!="FALSE"] %>% 
+  table() %>% addmargins()
+
+AllData$BothWaves %>% table()
+
+AllData %>% filter(BothWaves) %$% table(`Survey type2`, `Survey type1`)
+  
+AllData %>% filter(BothWaves, !is.na(Ethnicity)) %>% 
+  filter(!(Ethnicity %in% c("Prefer not to say", "Prefer not to sayPrefer not to say"))) %>% tunnel(nrow, note = "Ethnic group reported (at either timepoint)", return = FALSE)
+                   
+AllData %>% filter(BothWaves, str_detect(Ethnicity, "White|Irish"), !str_detect(Ethnicity, c("Black|Arab|Asian|Pakistani|Bangladeshi|Indian|Chinese|Mixed"))) %>%  tunnel(nrow, note = "White background", return = FALSE)
+
+AllData %>% filter(BothWaves, !str_detect(Ethnicity, "White|Irish|Mixed"), str_detect(Ethnicity, c("Black|Arab|Asian|Pakistani|Bangladeshi|Indian|Chinese|Any other"))) %>% tunnel(nrow, note = "Minority-ethnic background", return = FALSE)
+
+AllData %>% filter(BothWaves, str_detect(Ethnicity, "White|Irish|Mixed"), str_detect(Ethnicity, c("Black|Arab|Asian|Pakistani|Bangladeshi|Indian|Mixed|Chinese")))   %>% tunnel(nrow, note = "Mixed background", return = FALSE)
+
+
+AllDataBoth <- AllData %>% filter(BothWaves) %>% mutate(Ethn_type = case_when(
+  str_detect(Ethnicity, "White|Irish") & !str_detect(Ethnicity, c("Black|Arab|Asian|Pakistani|Bangladeshi|Indian|Chinese|Mixed")) ~ "White",
+  !str_detect(Ethnicity, "White|Irish|Mixed") & str_detect(Ethnicity, c("Black|Arab|Asian|Pakistani|Bangladeshi|Indian|Chinese|Any other")) ~ "ME",
+  str_detect(Ethnicity, "White|Irish|Mixed") & str_detect(Ethnicity, c("Black|Arab|Asian|Pakistani|Bangladeshi|Indian|Mixed|Chinese")) ~ "Mixed",
+  TRUE ~ NA_character_
+) %>% factor())
+
+AllDataBoth$selfexpor <- AllDataBoth %>% make_scale(c("Q24_START", "Q25_START", "Q26_START", "Q28_START"), "SelfExp")
+
+```
+
+
+
+##Rename variables:
+```{r}
+
+#Q7.1-START	Diverse teams better
+#Q7.1-END	Diverse teams better
+#Q9.1-START	Prefer diverse teams
+#Q9.1-END	Prefer diverse teams
+#Q47.1-END	Discuss commonalities
+#Q47.2-END	Discuss differences
+
+AllDataBoth %<>% rename(
+div_better_START = Q7.1_START,
+div_better_END = Q7.1_END,
+div_prefer_START = Q9.1_START,
+div_prefer_END = Q9.1_END	,
+discuss_commonalities = Q47.1_END,
+discuss_differences = Q47.2_END)
+
+AllDataBoth$pref_change <- AllDataBoth$div_prefer_END - AllDataBoth$div_prefer_START
+
+AllDataBoth$better_change <- AllDataBoth$div_better_END - AllDataBoth$div_better_START
+
+```
+
+##Calculate descriptives:
+<div class="fold s">
+```{r}
+var_names <- c(
+  "div_better_START" = "Diversity value *Start*", 
+  "div_better_END" = "Diversity value *End*", 
+  "div_prefer_START" = "Diversity preference *Start*", 
+  "div_prefer_END" = "Diversity preference *End*", 
+  "discuss_differences" = "Discussed differences", 
+  "selfexpor" = "Self-expansion orientation") 
+  
+plots <- map(names(var_names), function(x) ggplot(AllDataBoth, aes_string(x)) + geom_histogram(bins=5, col = "white", size = 3) + ylim(c(0, 300)) + theme_classic() + theme(axis.title = element_blank(), axis.text.y = element_blank(), axis.ticks = element_blank(), axis.line = element_blank()))
+
+plots[[6]] <- ggplot(AllDataBoth, aes(x=selfexpor)) + geom_density(fill = "grey", outline.type = "full", adjust = 2) + ylim(c(0, .8)) + theme_classic() + theme(axis.title = element_blank(), axis.text.y = element_blank(), axis.ticks = element_blank(), axis.line = element_blank())
+
+ctable <- AllDataBoth %>% 
+  select(one_of(names(var_names))) %>%
+  cor_matrix(method = "spearman", var_names = var_names) %>% apa_cor_table(extras = tibble(Distribution = c(1:6)))
+
+walk(1:length(var_names), function(x)
+    ctable <<- gt::text_transform(ctable, gt::cells_body(3,x), fn = function(y) {
+      plots[[x]] %>%
+        gt::ggplot_image(height = gt::px(50))
+    })
+  )
+
+ctable %>% gt::gtsave("spearman_correlations_hists.html")
+
+```
+
+
+#H1 + 2: Valuing diversity
+... increases during the programme?
+
+```{r}
+#Ignoring cohorts
+wilcox.test(AllDataBoth$div_better_END, AllDataBoth$div_better_START, paired = T)
+wilcox.test(AllDataBoth$div_prefer_END, AllDataBoth$div_prefer_START, paired = T)
+
+print("Prefer diverse teams")
+
+AllDataBoth$ID <- factor(AllDataBoth$`NCS ID`)
+AllDataBoth$WaveID %<>% factor()
+
+AllDataBoth_fct <-  AllDataBoth %>% mutate(pref_change = factor(pref_change, ordered = TRUE), discuss_commonalities = factor(discuss_commonalities, ordered = TRUE), discuss_differences = factor(discuss_differences, ordered = TRUE))
+
+AllDataBoth_gathered <- AllDataBoth %>% gather("time", "div_prefer", c(div_prefer_START, div_prefer_END)) %>% mutate(time = factor(time) %>% relevel(ref = "div_prefer_START"), div_prefer = factor(div_prefer, ordered = TRUE), discuss_commonalities = factor(discuss_commonalities, ordered = TRUE), discuss_differences = factor(discuss_differences, ordered = TRUE))
+
+mod1 <- clmm(div_prefer ~ time + (1|ID) + (1|WaveID), data = AllDataBoth_gathered)
+summary(mod1)
+
+(AllDataBoth$div_prefer_END-AllDataBoth$div_prefer_START) %>% sign() %>% table() %>% prop.table() %>% rNuggets:::.fmt_pct()
+
+print("Diverse teams better (instrumental)")
+
+AllDataBoth_gathered <- AllDataBoth %>% gather("time", "div_better", c(div_better_START, div_better_END)) %>% mutate(time = factor(time) %>% relevel(ref = "div_better_START"), div_better = factor(div_better, ordered = TRUE), discuss_commonalities = factor(discuss_commonalities, ordered = TRUE), discuss_differences = factor(discuss_differences, ordered = TRUE))
+
+mod1 <- clmm(div_better ~ time + (1|ID) + (1|WaveID), data = AllDataBoth_gathered)
+summary(mod1)
+
+(AllDataBoth$div_better_END-AllDataBoth$div_better_START) %>% sign() %>% table() %>% prop.table() %>% rNuggets:::.fmt_pct()
+```
+
+# Permutation tests of main effects
+
+## Instrumental value
+
+```{r}
+#Permutation of both variables - calculate expected score in each
+better <- AllDataBoth %>% select(div_better_START, div_better_END) %>% drop_na()
+
+obs_changes_better <- better %>% group_by(div_better_START) %>% summarise(M = mean(div_better_END)) %>% tidyr::pivot_wider(names_from = div_better_START, values_from = M)
+
+no_perm <- 5000
+pb <-  txtProgressBar(min = 0, max = no_perm, initial = 0, char = "=",
+               width = NA, title, label, style = 1, file = "")
+set.seed(300688)
+perm_better <- map_dfr(1:no_perm, function(x) {
+  ind <- sample(c(TRUE, FALSE), nrow(better), replace = TRUE)  
+  out <- better %>% mutate(pre = ifelse(ind, div_better_START, div_better_END), post = ifelse(!ind, div_better_START, div_better_END)) %>% group_by(pre) %>% summarise(M = mean(post), .groups = "drop") %>% tidyr::pivot_wider(names_from = pre, values_from = M)
+
+setTxtProgressBar(pb, x, title = NULL, label = NULL)
+out
+})
+close(pb)
+
+res_better <- map2_dfr(obs_changes_better$value, perm_better, function(obs, perm){
+  tibble(sig = mean(obs[1]<perm), M = obs)
+}) %>% mutate(pre = 1:5)
+
+n_better <- better %>% group_by(div_better_START) %>% summarise(n = n())
+
+obs_changes_better %<>% tidyr::pivot_longer(everything()) %>% mutate(change = value - as.numeric(name))
+
+cut_offs_better <- perm_better %>% tidyr::pivot_longer(everything()) %>% mutate(change = value - as.numeric(name)) %>% group_by(name) %>% summarise(change = quantile(change, .95))
+
+perm_better %>% tidyr::pivot_longer(everything()) %>% mutate(change = value - as.numeric(name)) %>% ggplot(aes(x=name, y=change)) + geom_violin() + stat_summary_bin(data = obs_changes_better, fun = mean, fun.min = mean, fun.max = mean, mapping = aes(group = name, color = "observed"),
+               geom = "hpline", 
+               width = .5, size = 1) + stat_summary_bin(data = cut_offs_better, fun = mean, fun.min = mean, fun.max = mean,
+               geom = "hpline", mapping = aes(group = name, color = "95% permutations"),
+               width = .5, size = 1) + labs(title = "Null distribution of instrumental value change scores and observed changes", x = "Instrumental value of diversity at start", y = "Change score from start to end", colour = "Mean change") + theme_minimal() + scale_color_manual(values = c("orange", "darkgreen"))
+
+#rNuggets::ggsave_show(width = 20, height = 10)
+
+#Could add formal significance testing based on chi-squared goodness of fit? Probably not needed.
+
+```
+
+## Instrumental preference
+
+```{r}
+#Permutation of preference
+prefer <- AllDataBoth %>% select(div_prefer_START, div_prefer_END) %>% drop_na()
+
+obs_changes_prefer <- prefer %>% group_by(div_prefer_START) %>% summarise(M = mean(div_prefer_END)) %>% tidyr::pivot_wider(names_from = div_prefer_START, values_from = M)
+
+no_perm <- 5000
+pb <-  txtProgressBar(min = 0, max = no_perm, initial = 0, char = "=",
+               width = NA, title, label, style = 1, file = "")
+set.seed(300688)
+perm_prefer <- map_dfr(1:no_perm, function(x) {
+  ind <- sample(c(TRUE, FALSE), nrow(prefer), replace = TRUE)  
+  out <- prefer %>% mutate(pre = ifelse(ind, div_prefer_START, div_prefer_END), post = ifelse(!ind, div_prefer_START, div_prefer_END)) %>% group_by(pre) %>% summarise(M = mean(post), .groups = "drop") %>% tidyr::pivot_wider(names_from = pre, values_from = M)
+setTxtProgressBar(pb, x, title = NULL, label = NULL)
+out
+})
+close(pb)
+
+res_prefer <- map2_dfr(obs_changes_prefer$value, perm_prefer, function(obs, perm){
+  tibble(sig = mean(obs[1]<perm), M = obs)
+}) %>% mutate(pre = 1:5)
+
+n_prefer <- prefer %>% group_by(div_prefer_START) %>% summarise(n = n())
+
+
+obs_changes_prefer %<>% tidyr::pivot_longer(everything()) %>% mutate(change = value - as.numeric(name))
+
+cut_offs <- perm_prefer %>% tidyr::pivot_longer(everything()) %>% mutate(change = value - as.numeric(name)) %>% group_by(name) %>% summarise(change = quantile(change, .95))
+
+perm_prefer %>% tidyr::pivot_longer(everything()) %>% mutate(change = value - as.numeric(name)) %>% ggplot(aes(x=name, y=change)) + geom_violin() + stat_summary_bin(data = obs_changes_prefer, fun = mean, fun.min = mean, fun.max = mean, mapping = aes(group = name, color = "observed"),
+               geom = "hpline", 
+               width = .5, size = 1) + stat_summary_bin(data = cut_offs, fun = mean, fun.min = mean, fun.max = mean,
+               geom = "hpline", mapping = aes(group = name, color = "95% permutations"),
+               width = .5, size = 1) + labs(title = "Null distribution of preference change scores and observed changes", x = "Preference for diversity at start", y = "Change score from start to end", colour = "Mean change") + theme_minimal() + scale_color_manual(values = c("orange", "darkgreen"))
+
+#rNuggets::ggsave_show(width = 20, height = 10)
+
+```
+
+#H3 - interaction with talking about differences
+
+```{r}
+#Regression to the mean
+wilcox.test(AllDataBoth$div_prefer_START, y=AllDataBoth$div_prefer_END - AllDataBoth$div_prefer_START)
+wilcox.test(AllDataBoth$div_better_START, y=AllDataBoth$div_better_END - AllDataBoth$div_better_START)
+
+AllDataBoth_fact <- AllDataBoth %>% dplyr::select(WaveID, div_prefer_START, div_prefer_END, div_better_START, div_better_END, discuss_differences, selfexpor, pref_change, better_change, Ethn_type) %>% mutate(across(c(everything(), -selfexpor, -Ethn_type), factor, ordered = TRUE))
+
+
+mod1 <- clmm(div_prefer_END ~ div_prefer_START + discuss_differences + (1|WaveID), data = AllDataBoth_fact)
+mod0 <- clmm(div_prefer_END ~ div_prefer_START + (1|WaveID), data = AllDataBoth_fact %>% drop_na(discuss_differences))
+anova(mod0, mod1, type=2)
+
+
+prefer <- emmeans::emmip(mod1, ~  discuss_differences, mode = "mean.class", plotit = F) %>% mutate(measure = "prefer")
+
+mod2 <- clmm(div_better_END ~ div_better_START + discuss_differences + (1|WaveID), data = AllDataBoth_fact)
+summary(mod2)
+mod0 <- clmm(div_better_END ~ div_better_START + (1|WaveID), data = AllDataBoth_fact %>% drop_na(discuss_differences))
+
+anova(mod0, mod2, type=2)
+
+
+
+better <- emmeans::emmip(mod2, ~  discuss_differences, mode = "mean.class", plotit = FALSE) %>% mutate(measure = "better")
+
+ggplot(mapping = aes(x=discuss_differences, y = yvar, color = measure, shape = measure)) + geom_point(data = prefer) + geom_point(data = better) + geom_line(data = prefer, group = 1 )+geom_line(data = better,  group = 1) + jtools::theme_apa(legend.use.title = TRUE) + labs(x = "Frequency of discussing differences", y = "Predicted valuing of diversity", color = "Measure")  + ylim(c(1,5)) + scale_color_manual(values = c("darkgreen", "blue"), labels = c("Instrumental value", "Preference"), name = "Measure") + scale_shape_manual( values = c(16, 17), labels = c("Instrumental value", "Preference"), name = "Measure")
+
+#ggsave_show(width = 20, height = 12)
+
+
+
+```
+
+#H4 - interaction with self-expansion orientation
+
+
+```{r}
+mod1 <- clmm(div_prefer_END ~ div_prefer_START + selfexpor + (1|WaveID), data = AllDataBoth_fact)
+mod0 <- clmm(div_prefer_END ~ div_prefer_START + (1|WaveID), data = AllDataBoth_fact %>% drop_na(selfexpor))
+
+summary(mod1)
+
+anova(mod0, mod1, type=2)
+
+mod2 <- clmm(div_better_END ~ div_better_START + selfexpor + (1|WaveID), data = AllDataBoth_fact)
+mod0 <- clmm(div_better_END ~ div_better_START + (1|WaveID), data = AllDataBoth_fact %>% drop_na(selfexpor))
+
+anova(mod0, mod2, type=2)
+
+prefer <- emmeans::emmip(mod1, ~  selfexpor, at = list(selfexpor = c(1:5)), mode = "mean.class", plotit = FALSE) %>% mutate(measure = "prefer")
+
+better <- emmeans::emmip(mod2, ~  selfexpor, at = list(selfexpor = c(1:5)), mode = "mean.class", plotit = FALSE) %>% mutate(measure = "better")
+
+ggplot(mapping = aes(x=selfexpor, y = yvar, color = measure, linetype = measure)) +  geom_line(data = prefer, group = 1, size = 1)+geom_line(data = better,  group = 1, size = 1) + jtools::theme_apa(legend.use.title = TRUE) + labs(x = "Self-expansion orientation", y = "Predicted valuing of diversity", color = "Measure")  + ylim(c(1,5))+ scale_color_manual(values = c("darkgreen", "blue"), labels = c("Instrumental value", "Preference"), name = "Measure") + scale_linetype_manual( values = c("twodash", "dotted"), labels = c("Instrumental value", "Preference"), name = "Measure")
+
+
+#ggsave_show(width = 20, height = 12)
+
+
+```
+
+# Exploratory
+
+```{r}
+#Collapse into White & ME (results to not change when mixed-ethnicity are dropped)
+
+AllDataBoth_fact_flt <- AllDataBoth_fact %>% mutate(Ethn_type_bin = forcats::fct_collapse(Ethn_type, "White" = "White", other_level = "ME")) %>% filter(!is.na(Ethn_type_bin))
+
+
+
+mod0 <- clmm(div_prefer_END ~ div_prefer_START + (1|WaveID), data = AllDataBoth_fact_flt)
+
+mod1 <-  clmm(div_prefer_END ~ div_prefer_START + Ethn_type_bin + (1|WaveID), data = AllDataBoth_fact_flt)
+
+anova(mod0, mod1)
+
+mod0 <- clmm(div_better_END ~ div_better_START + (1|WaveID), data = AllDataBoth_fact_flt)
+
+mod1 <-  clmm(div_better_END ~ div_better_START + Ethn_type_bin + (1|WaveID), data = AllDataBoth_fact_flt)
+
+anova(mod0, mod1)
+
+t.test(as.numeric(div_better_START) ~ Ethn_type_bin, AllDataBoth_fact_flt) %>% papaja::apa_print() %>% extract("full_result") %>% stringr::str_replace_all("\\\\|\\$", "") %>% stringr::str_replace_all("Delta", "Δ") 
+t.test(as.numeric(div_prefer_START) ~ Ethn_type_bin, AllDataBoth_fact_flt) %>% papaja::apa_print() %>% extract("full_result") %>% stringr::str_replace_all("\\\\|\\$", "") %>% stringr::str_replace_all("Delta", "Δ")
+```
+
+
+
+

@@ -1,0 +1,2 @@
+Summary of participant drop-out:  2 levels: FALSE (n = 151, 71.56%) and TRUE (n = 60, 28.44%)
+211 participants (Mean age = 19.45, SD = 2.93, range = [17, 43]; 80.57% females)

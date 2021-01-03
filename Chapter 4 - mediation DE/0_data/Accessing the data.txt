@@ -1,0 +1,3 @@
+This study used data from ALLBUS 2016. It can be downloaded from the GESIS repository: https://dbk.gesis.org/dbksearch/sdesc2.asp?no=5250&db=e
+
+To reproduce our analyses, it should then be saved in this folder with the name "ZA5250_v2-1-0.sav"
