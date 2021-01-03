@@ -1,3 +1,5 @@
+!!! WORK IN PROGRESS !!!
+
 This repository contains data, code and materials for my PhD. At present, it will be filled as I finalize draft chapters.
 
 ## Structure
