@@ -1,0 +1,343 @@
+---
+title: "Study 2 - mediation"
+output:
+  html_document:
+    df_print: paged
+    toc: true
+    number_section: true
+---
+
+
+# Data preparation
+
+## Load required packages:
+```{r message = FALSE}
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(lavaan, tidyverse, magrittr, psych, modelsummary, gt)
+pacman::p_load_gh("lukaswallrich/rNuggets")
+pacman::p_load_gh("lukaswallrich/timesaveR")
+```
+
+## Load & filter data:
+```{r}
+df_all <- read_csv("AllResponses.csv")
+needed_vars <- c("ID", "Age", "Gender", "Ethnicity", "BrCitizen", "AgetoUK", "AffBlNeg", "AffBlWarm", "DivPol1", "DivPol2", "DivPol3", "DivPol4", "DivPol5", "DivPol6", "DivPol7", "DivPol8", "WhExpBlComplimented", "WhExpBlBefriended", "WhExpBlMadeFeelWelcome", "WhExpBlSupported", "WhExpBlHelped", "WhExpBlRidiculed", "WhExpBlMadeFeelUnwanted", "WhExpBlVerbAbused", "WhExpBlIntimidated", "WhExpBlThreathened", "DivValInstr1", "DivValInstr2R", "DivValInstr3", "DivValInstr4", "DivValInstr5", "BSSlur2", "BSSlur3", "BSSlur4", "BSSlur5", "BSSlur6", "BSSlur7", "PrejBelLessDes", "PrejBelUnequOpps", "PrejBelNoLonger", "PrejBelNoFav", "PrejBelLackResp", "WhEmpathy1", "WhEmpathy2", "WhAnxHallUnhappy", "WhAnxHallPleased", "WhAnxHallTense")
+
+df <- df_all %>%
+  filter(Ethnicity %in% c(10, 11, 12), BrCitizen %in% c(1, 2), 
+         !PercDone < 100) %>%
+          # PercDone < 100 never submitted survey and 
+          # likely wanted to withdraw - concerns 7 participants
+  select(all_of(needed_vars)) 
+
+
+df$Gender <- factor(df$Gender, labels = c("Male", "Female"))
+
+report::report_participants(df)
+
+df$BrCitizen %>% table() %>% prop.table()
+
+```
+
+# Missing data
+
+```{r}
+df %>%
+    naniar::miss_var_summary() 
+```
+# Descriptive statistics
+
+## Create scales
+
+```{r}
+scales_list <- list(
+  "PrejAff" = c("AffBlNeg", "AffBlWarm"),
+  "DivPol" = c("DivPol1", "DivPol2", "DivPol3", "DivPol4", 
+               "DivPol5", "DivPol6", "DivPol7", "DivPol8"),
+  "PosCont" = c("WhExpBlComplimented", "WhExpBlBefriended",
+                "WhExpBlMadeFeelWelcome", "WhExpBlSupported", "WhExpBlHelped"),
+  "NegCont" = c("WhExpBlRidiculed", "WhExpBlMadeFeelUnwanted",
+                "WhExpBlVerbAbused", "WhExpBlIntimidated",
+                "WhExpBlThreathened"),
+  "DivVal" = c("DivValInstr1", "DivValInstr2R", "DivValInstr3", 
+               "DivValInstr4", "DivValInstr5"),
+  "BSAct" = c("BSSlur2", "BSSlur3", "BSSlur4", "BSSlur5", 
+              "BSSlur6", "BSSlur7"),
+  "PrejCog" = c("PrejBelLessDes", "PrejBelUnequOpps", 
+                "PrejBelNoLonger", "PrejBelNoFav", "PrejBelLackResp"),
+  "Empathy" = c("WhEmpathy1", "WhEmpathy2"),
+  "Anxiety" = c("WhAnxHallUnhappy", "WhAnxHallPleased", "WhAnxHallTense")
+)
+
+scales_rev_list <- list("PrejAff" =c("AffBlWarm"),
+                  "PrejCog" =  c("PrejBelLessDes", "PrejBelUnequOpps"),
+                    "DivVal" = c("DivValInstr2R"),
+                  "Anxiety" = c("WhAnxHallPleased") 
+              )
+
+
+scale_values <- make_scales(df, scales_list, reversed = scales_rev_list, print_hist = FALSE, print_desc = FALSE)
+
+df %<>% cbind(scale_values$scores)
+
+```
+
+```{r}
+
+vars_names <- tibble::tribble(
+~old, ~new,
+"PosCont", "Pos. contact", 
+"NegCont", "Neg. contact" ,
+"DivVal", "Valuing diversity",
+"Empathy", "Empathy",
+"Anxiety", "Anxiety",
+"PrejCog", "Cognitive prejudice",
+"PrejAff", "Affective prejudice",
+"BSAct", "Bystander intervention",
+"DivPol", "Policy support"
+)
+
+scale_alphas <- scale_values$descriptives %>%
+  select(old = Scale, Reliability) %>%
+  right_join(vars_names, by = "old") %>%
+  select(Reliability) %>%
+  pull() %>%
+  fmt_cor() %>%
+  str_replace("NA", "") %>%
+  tibble(Alphas = .)
+
+df %>%
+  cor_matrix(missing = "fiml", bootstrap = 5000, var_names = vars_names) %>%
+  report_cor_table(extras = scale_alphas, add_distributions = TRUE, data = df, filename = "cor_matrix.html")
+
+```
+
+# Mediation
+
+```{r}
+run_mediation_mult_two_predictors <- function(data, X, Ms,Y, CV = "", standardized_all = TRUE, mc_pvalues = TRUE, seed = 987654321, bootstraps = 5000, return = c("both", "results", "bootstrap_results")) {
+
+M_letter <- letters[1:length(Ms)]
+M_codes <- paste0("M", 1:length(Ms))
+
+paste0("Mediator codes used:", "\n", paste(M_codes, Ms, collapse="\n")) %>% message()
+
+mod <- c("    #Mediators", map2(Ms, M_letter, function(x, y) glue::glue("{x} ~ {y}1*{X[1]} + {y}2*{X[2]}"))) %>%
+  paste("    ", collapse = "\n") %>% paste(collapse = "\n", "\n", glue::glue("
+      #Outcome
+      {Y} ~ cdash1*{X[1]} + cdash2*{X[2]} + {paste0(M_letter, M_letter, '*', Ms, collapse=' + ')} {CV}
+
+       #Direct effects cond on moderator
+      direct1 := cdash1
+      direct2 := cdash2
+
+")) %>%
+  paste(paste(pmap(list(Ms, M_letter, M_codes), function(x, y, z) glue::glue("
+
+       #Indirect effects through {x} 
+      {z}.indirect1 := {y}1 * {y}{y}
+      {z}.indirect2 := {y}2 * {y}{y}
+   ")), collapse = "\n"), paste(glue::glue("
+      
+      #Total effects 
+      total1 := direct1 + {map(M_codes, paste0, '.indirect1') %>% paste(collapse = ' + ')}
+      total2 := direct2 + {map(M_codes, paste0, '.indirect2') %>% paste(collapse = ' + ')}
+      indirect_total1 := total1 - direct1 
+      indirect_total2 := total2 - direct2
+      
+      "), collapse = "\n") , collapse = "\n")
+
+
+library(lavaan)
+set.seed(seed)
+
+fit_boot <- sem(mod, data, estimator = "ML", fixed.x = FALSE, std.ov = standardized_all, missing = "direct", se = "bootstrap", bootstrap = bootstraps)
+
+if (return == "results") {
+parameterEstimates(fit_boot, boot.ci.type = "bca.simple", level = .95, ci = T) %>% filter(label != "") %>% select(label, est, se, pvalue, ci.lower, ci.upper) %>% tibble() %>% return() 
+} else if (return == "bootstrap_results") {
+  lavInspect(fit_boot, "coef.boot") %>% as_tibble() %>% transmute(emp_pos = a1*aa, emp_neg = a2*aa, anx_pos = b1*bb, anx_neg = b2*bb, val_pos = c1*cc, val_neg = c2*cc) %>% return()
+} else {
+  list(results = parameterEstimates(fit_boot, boot.ci.type = "bca.simple", level = .95, ci = T) %>% filter(label != "") %>% select(label, est, se, pvalue, ci.lower, ci.upper) %>% tibble() %>% return(),
+       boot_results = lavInspect(fit_boot, "coef.boot") %>% as_tibble() %>% transmute(emp_pos = a1*aa, emp_neg = a2*aa, anx_pos = b1*bb, anx_neg = b2*bb, val_pos = c1*cc, val_neg = c2*cc) %>% return())
+}
+}
+
+mediators <- c("Empathy", "Anxiety", "DivVal") %>% set_names(paste0("M", 1:3))
+predictors <- c("PosCont", "NegCont") %>% set_names(1:2)
+DVs <- c("DivPol", "BSAct", "PrejCog", "PrejAff")
+
+models <- map(DVs, ~run_mediation_mult_two_predictors(df, X = predictors, Y = .x, Ms = mediators)) %>% set_names(DVs)
+
+models %>%
+  transpose() %>%
+  extract2("results") %>%
+  write_rds("mediation_models_bootstrapped.RDS")
+
+models %>%
+  transpose() %>%
+  extract2("boot_results") %>%
+  write_rds("mediation_models_bootstrapped_ind_estimates.RDS")
+
+#models <- read_rds("mediation_models_bootstrapped.RDS")
+
+model_results <- models %>%
+  transpose() %>%
+  extract2("results")
+
+effects_summary <- map2_dfr(model_results, names(model_results), ~ .x %>%
+  filter(str_detect(label, "direct|total"), !str_detect(label, "_")) %>%
+  mutate(pred = str_sub(label, -1), label = str_sub(label, 1, -2)) %>%
+  tidyr::separate(label, "effect", extra = "drop") %>%
+  mutate(effect = effect %>% str_replace_all(mediators), 
+         pred = pred %>% str_replace_all(predictors), 
+         sig_ind = case_when(!(effect %in% c("total", "direct")) & sign(ci.lower) == sign(ci.upper) ~ "**", TRUE ~ ""), 
+         direct = ifelse(str_detect(effect, "direct|total"), sigstars(pvalue), ""), 
+         fmt = glue::glue("{sig_ind}{fmt_cor(est)}{sig_ind} {direct} <br /> { fmt_ci(ci.lower, ci.upper)}"), outcome = .y)) %>%
+  select(effect, pred, outcome, fmt) %>%
+  pivot_wider(names_from = effect, values_from = fmt) %>%
+  mutate(outcome = outcome %>% 
+           str_replace_all(vars_names$new %>% set_names(vars_names$old)), 
+         pred = pred %>% str_replace_all(vars_names$new %>%
+                                           set_names(vars_names$old))) %>%
+  select(To = outcome, From = pred, Direct = direct, everything(), Total = total) %>% arrange(match(To, c("Affective prejudice", "Cognitive prejudice", "Bystander intervention", "Policy support")))
+
+
+effects_summary %>%
+  gt::gt() %>%
+  gt::fmt_markdown(everything()) %>%
+  gt_apa_style() %>%
+  gt::gtsave("mediation_summary.html")
+
+
+```
+
+```{r}
+graph_paths <- map2(model_results, names(model_results), ~ .x %>%
+  filter(!str_detect(label, "direct|total") | 
+           (str_detect(label, "indirect") & !str_detect(label, "_"))) %>%
+  mutate(fmt1 = glue::glue("{fmt_cor(est)}{sigstars(pvalue)} <br /> { fmt_ci(ci.lower, ci.upper)}"), 
+         sig_ind = case_when(str_detect(label, "indirect") & sign(ci.lower) == sign(ci.upper) ~ "**", TRUE ~ ""), 
+         fmt2 = glue::glue("{sig_ind}{fmt_cor(est)}{sig_ind} <br /> {fmt_ci(ci.lower, ci.upper)}"), 
+         fmt = case_when(str_detect(label, "indirect") ~ fmt2, TRUE ~ fmt1)) %>%
+  select(label, fmt, pvalue))
+
+library(magrittr)
+
+walk2(graph_paths, names(graph_paths), function(df, outcome) {
+  get_param <- function(param) {
+    df$fmt[df$label == param]
+  }
+
+  dashed_ns <- function(param) {
+    if (df$pvalue[df$label == param] >= .05) {
+      return(", style = 'dashed'")
+    }
+    ""
+  }
+
+  outcome %<>% str_replace_all(vars_names$new %>% set_names(vars_names$old))
+
+  plot_code_edited <- glue::glue("
+                    
+digraph  {{
+
+graph [layout = 'neato',
+outputorder = 'edgesfirst',
+bgcolor = 'white', rankdir=LR,]
+
+node [fontname = 'Helvetica',
+fontsize = '10',
+shape = 'circle',
+fixedsize = 'true',
+width = '0.5',
+style = 'filled',
+fillcolor = 'white',
+color = 'black',
+fontcolor = 'black']
+
+
+
+'x1' [label = <Empathy>, color = 'DarkOliveGreen', fontcolor = 'DarkOliveGreen', shape = 'rectangle', height = '0.5', width = '1.5', pos = '2.5,2.1!']
+'x2' [label = <Anxiety>, color = 'SteelBlue', fontcolor = 'SteelBlue', shape = 'rectangle', height = '0.5', width = '1.5', pos = '2.5,0.3!']
+'x3' [label = <Valuing<br />diversity>, color = 'SaddleBrown', fontcolor = 'SaddleBrown', shape = 'rectangle', height = '0.5', width = '1.5', pos = '2.5,-1.5!']
+
+
+'y' [label = <{outcome[1]}>, color = 'black', shape = 'rectangle', height = '0.5', width = '1.5', pos = '6,1.2!']
+
+'M1' [label = <Negative <br /> contact<br />>,
+     color = 'black', shape = 'rectangle', height = '0.5', width = '1.5',
+     pos = '-1,-1.3!']
+'M2' [label = <Positive <br /> contact<br />>,
+     color = 'black', shape = 'rectangle', height = '0.5', width = '1.5',
+     pos = '-1,1.7!']
+
+
+'cdash1' [label = <{get_param('cdash1')}>,
+     color = 'black', shape = 'plaintext', fillcolor='transparent',
+     pos = '2.5,1.25!']
+'cdash2' [label = <{get_param('cdash2')}>,
+     color = 'black', shape = 'plaintext', fillcolor='transparent',
+     pos = '2.4,-0.55!']
+     
+'a1' [label = <{get_param('a1')}>,
+     fontcolor = 'DarkOliveGreen', shape = 'plaintext', fillcolor='transparent',
+     pos = '0.4,2.1!']
+'a2' [label = <{get_param('a2')}>,
+     fontcolor = 'DarkOliveGreen', shape = 'plaintext', fillcolor='transparent',
+     pos = '0.2,-0.1!']
+
+'aa' [label = <{get_param('aa')}>,
+     fontcolor = 'DarkOliveGreen', shape = 'plaintext', fillcolor='transparent',
+     pos = '4.2, 2.1!']
+'bb' [label = <{get_param('bb')}>,
+     fontcolor = 'SteelBlue', shape = 'plaintext', fillcolor='transparent',
+     pos = '4.0, 0.85!']
+'cc' [label = <{get_param('cc')}>,
+     fontcolor = 'SaddleBrown', shape = 'plaintext', fillcolor='transparent',
+     pos = '5.1, -0.4!']
+
+'b1' [label = <{get_param('b1')}>,
+     fontcolor = 'SteelBlue', shape = 'plaintext', fillcolor='transparent',
+     pos = '1.15, 0.85!']
+'b2' [label = <{get_param('b2')}>,
+     fontcolor = 'SteelBlue', shape = 'plaintext', fillcolor='transparent',
+     pos = '1.5, -0.1!']
+
+'c1' [label = <{get_param('c1')}>,
+     fontcolor = 'SaddleBrown', shape = 'plaintext', fillcolor='transparent',
+     pos = '0.1,0.65!']
+'c2' [label = <{get_param('c2')}>,
+     fontcolor = 'SaddleBrown', shape = 'plaintext', fillcolor='transparent',
+     pos = '0.5,-1.6!']
+
+
+
+
+edge [fontname = 'Helvetica',
+fontsize = '10',
+len = '1.5',
+color = 'black',
+arrowsize = '0.5']
+
+M1->x1 [tailport = 'e', headport = 's', color = 'DarkOliveGreen'{dashed_ns('a2')}]
+M2->x1 [tailport = 'e', headport = 'w', color = 'DarkOliveGreen'{dashed_ns('a1')}]
+M1->x2 [tailport = 'e', headport = 's', color = 'SteelBlue'{dashed_ns('b2')}]
+M2->x2 [tailport = 'e', color = 'SteelBlue', headport = 'n'{dashed_ns('b1')}]
+M1->x3 [tailport = 'e', color = 'SaddleBrown', headport = 'w'{dashed_ns('c2')}]
+M2->x3 [tailport = 'e', headport = 'nw', color = 'SaddleBrown'{dashed_ns('c1')}]
+M1->y [tailport = 'e', headport = 's'{dashed_ns('cdash2')}]
+M2->y [headport = 'w', tailport = 'e'{dashed_ns('cdash1')}]
+
+x1->y  [color = 'DarkOliveGreen', tailport = 'e'{dashed_ns('aa')}]
+x2->y  [tailport = 'e', color = 'SteelBlue'{dashed_ns('bb')}]
+x3->y  [headport = 's', tailport = 'e', color = 'SaddleBrown'{dashed_ns('cc')}]
+
+ }}
+")
+
+  rNuggets:::.grViz_and_save(plot_code_edited, paste0("mediation_model_", outcome, ".svg"))
+})
+
+```
+
