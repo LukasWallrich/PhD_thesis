@@ -1,0 +1,8 @@
+Note created:
+Fitmeasures measurement model
+ 0.91 0.066 0.07 518.03 271 1.912
+Model comparison two-groups: <em>&chi;</em><sup>2</sup>(29) = 8.56, <em>p</em> > .99
+Tests for differences in directional paths
+ posdiv_vs_divpos: diff: 0.312, z = 2.73,  p = .006, [0.09, 0.54]
+ negdiv_vs_divneg: diff: -0.214, z = -1.94,  p = .052, [-0.43, 0.00]
+

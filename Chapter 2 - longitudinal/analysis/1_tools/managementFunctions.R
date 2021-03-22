@@ -17,3 +17,10 @@ createPipelineDir <- function (NAME) {
 getNumOutFolder <- function (num) {
   here(pipelinedir, list.files(here(pipelinedir))[str_detect(list.files(here(pipelinedir)), paste0("^", num))], "out")
 }  
+
+take_note <- function(...) {
+  x <- list(...) %>% unlist()
+  cat(paste(x, collapse = " "))
+  notes <<- c(notes, paste(x, collapse = " "))
+  invisible(x[[1]])
+}

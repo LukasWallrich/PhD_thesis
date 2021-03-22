@@ -1,2 +1,6 @@
-Summary of participant drop-out:  2 levels: FALSE (n = 151, 71.56%) and TRUE (n = 60, 28.44%)
-211 participants (Mean age = 19.45, SD = 2.93, range = [17, 43]; 80.57% females)
+Summary of participant drop-out:  x: 2 levels, namely FALSE (n = 151, 71.56%) and TRUE (n = 60, 28.44%)
+Max pct missing at T1:  2.4%
+Max # missing at T1:  5
+Max pct missing at T2:  2.6%
+Max # missing at T2:  4
+211 participants (Mean age = 19.4, SD = 2.9, range: [17, 43]; 80.6% females)

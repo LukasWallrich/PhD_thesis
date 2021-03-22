@@ -10,18 +10,21 @@ NAME <- '1_scales'
 # Sources
 # ------------
 if (!require("pacman")) install.packages("pacman")
-pacman::p_load(dplyr, magrittr, here, readr, lavaan)
 pacman::p_install_version(c("haven", "modelsummary", "stringr", "purrr", "gt"),
                           c("2.3.1", "0.5.1", "1.4.0", "0.3.4", "0.2.1"))
-pacman::p_install_version_gh(c("lukaswallrich/rNuggets", "easystats/report/report"),
-                             c("0.1.8", "0.1.0"))
+pacman::p_load(dplyr, magrittr, here, readr, lavaan, modelsummary)
 
-source(here("empirical/1_tools/managementFunctions.R"))
+pacman::p_install_version_gh(c("easystats/report/report"),
+                             c("0.1.0"))
+
+pacman::p_load_gh(c("lukaswallrich/timesaveR"))
+
+source(here("1_tools/managementFunctions.R"))
 
 #Set up pipeline folder if missing
 pipeline <- createPipelineDir(NAME)
-datadir <- "empirical/0_data"
-pipelinedir <- "empirical/3_pipeline"
+datadir <- "0_data"
+pipelinedir <- "3_pipeline"
 
 AllCases <- haven::read_sav(here(datadir,"CombinedData.sav"))
 
@@ -71,12 +74,21 @@ AllCases$drop_out[!AllCases$BothWaves] <- T
 
 notes %<>% c(paste("Summary of participant drop-out: ", report::report(AllCases$drop_out)))
 
-mod <- glm(drop_out ~ Age + Gender + src + BlackPOS_1 + BlackNEG_1 + ValDiv_1 + ApproachBlack_1, data = AllCases, family = "binomial")
+mod <- glm(drop_out ~ Age + Gender + src + BlackPOS_1 + BlackNEG_1 + ValDiv_1, data = AllCases, family = "binomial")
 
-modelsummary::modelsummary(mod, output="gt", statistic = "p.value", statistic_vertical = FALSE, stars = rNuggets:::std_stars, title = "Odds ratios and p-values for logistic regression predicting drop_out", exponentiate = TRUE) %>% gt::gtsave(here(pipeline, "out/drop_out_logreg.html"))
+modelsummary::modelsummary(mod, output="gt", statistic = "p.value", stars = timesaveR:::std_stars, exponentiate = TRUE) %>% 
+  gt::tab_header(title = "Odds ratios and p-values for logistic regression predicting drop_out", subtitle = "p-values shown in brackets") %>%
+  gt::gtsave(here(pipeline, "out/drop_out_logreg.html"))
 
-AllCases %>% select(Age, Gender, src, BlackPOS_1, BlackNEG_1, ValDiv_1, ApproachBlack_1) %>% naniar::miss_var_summary()
-AllCases %>% filter(drop_out == FALSE) %>% select(BlackPOS_2, BlackNEG_2, ValDiv_2, ApproachBlack_2) %>% naniar::miss_var_summary()
+notes %<>% c(AllCases %>% select(Age, Gender, src, BlackPOS_1, BlackNEG_1, ValDiv_1, ApproachBlack_1) %>% naniar::miss_var_summary() %>% 
+  summarise(max(pct_miss)) %>% pull() %>% {paste("Max pct missing at T1: ", fmt_pct(./100))})
+notes %<>% c(AllCases %>% select(Age, Gender, src, BlackPOS_1, BlackNEG_1, ValDiv_1, ApproachBlack_1) %>% naniar::miss_var_summary() %>% 
+  summarise(max(n_miss)) %>% pull() %>% paste("Max # missing at T1: ", .))
+
+notes %<>% c(AllCases %>% filter(drop_out == FALSE) %>% select(BlackPOS_2, BlackNEG_2, ValDiv_2, ApproachBlack_2) %>% naniar::miss_var_summary() %>% 
+  summarise(max(pct_miss)) %>% pull() %>% {paste("Max pct missing at T2: ", fmt_pct(./100))})
+notes %<>% c(AllCases %>% filter(drop_out == FALSE) %>% select(BlackPOS_2, BlackNEG_2, ValDiv_2, ApproachBlack_2) %>% naniar::miss_var_summary() %>% 
+  summarise(max(n_miss)) %>% pull() %>% paste("Max # missing at T2: ", .))
 
 
 # ------------
@@ -98,24 +110,17 @@ desc_mod <- ("
             ApproachBlack_2 ~~ ApproachBlack_2
 
              #Co-variances/correlations
-             BlackPOS_1 ~~ BlackPOS_2 + BlackNEG_1 + BlackNEG_2 + p1d1*ValDiv_1 + p1d2*ValDiv_2 + p1a1*ApproachBlack_1 + p1a2*ApproachBlack_2
-             BlackPOS_2 ~~ BlackNEG_1 + BlackNEG_2 + p2d1*ValDiv_1 + p2d2*ValDiv_2 + p2a1*ApproachBlack_1 + p2a2*ApproachBlack_2
-             BlackNEG_1 ~~ BlackNEG_2 + n1d1*ValDiv_1 + n1d2*ValDiv_2 + n1a1*ApproachBlack_1 + n1a2*ApproachBlack_2
-             BlackNEG_2 ~~ n2d1*ValDiv_1 + n2d2*ValDiv_2 + n2a1*ApproachBlack_1 + n2a2*ApproachBlack_2
-             ValDiv_1 ~~ ValDiv_2 + ApproachBlack_1 + ApproachBlack_2
-             ValDiv_2 ~~ ApproachBlack_1 + ApproachBlack_2
-             ApproachBlack_1 ~~ ApproachBlack_2
+             BlackPOS_1 ~~ BlackPOS_2 + BlackNEG_1 + BlackNEG_2 + p1d1*ValDiv_1 + p1d2*ValDiv_2 
+             BlackPOS_2 ~~ BlackNEG_1 + BlackNEG_2 + p2d1*ValDiv_1 + p2d2*ValDiv_2 
+             BlackNEG_1 ~~ BlackNEG_2 + n1d1*ValDiv_1 + n1d2*ValDiv_2 
+             BlackNEG_2 ~~ n2d1*ValDiv_1 + n2d2*ValDiv_2 
+             ValDiv_1 ~~ ValDiv_2 
              
              #Pos-neg abs differences
              d11 := p1d1 + n1d1
              d22 := p2d2 + n2d2
              d21 := p1d2 + n1d2
              d12 := p2d1 + n2d1
-             
-             a11 := p1a1 + n1a1
-             a22 := p2a2 + n2a2
-             a21 := p1a2 + n1a2
-             a12 := p2a1 + n2a1
              
              #Means of divvals
              ValDiv_2 ~ divval2 * 1
@@ -147,7 +152,7 @@ cors <- standardizedsolution(mod, ci = TRUE) %>%
 write.csv(cors, here(pipeline, "out/cors.csv")) 
 
 
-named_matrix <- matrix(rep(0, 64), nrow = 8) %>% set_rownames(union(cors$lhs, cors$rhs) %>% unique()) %>% set_colnames(union(cors$lhs, cors$rhs) %>% unique())
+named_matrix <- matrix(nrow = 6, ncol = 6) %>% set_rownames(union(cors$lhs, cors$rhs) %>% unique()) %>% set_colnames(union(cors$lhs, cors$rhs) %>% unique())
 
 cor_matrix <- purrr::map(3:6, function(x) {
   named_matrix[lower.tri(named_matrix)] <- cors[[x]]
@@ -156,7 +161,7 @@ cor_matrix <- purrr::map(3:6, function(x) {
 
 cor_matrix[["desc"]] <- desc
 
-rNuggets::apa_cor_table(cor_matrix, ci = "given", filename = here(pipeline, "out/correlations.html"))
+report_cor_table(cor_matrix, ci = "given", filename = here(pipeline, "out/correlations.html"))
 
  parameterestimates(mod) %>%
   filter(op == ":=") %>% select(comparison = lhs, everything(), -c(op, rhs, label, se, z)) %>% rNuggets::round_df(3) %>% gt::gt() %>% gt::tab_source_note("Significance tests for asymetry in correlation coefficients between pos/neg contact and diversity. The numbers indicate timepoints, e.g., d21 stands for the correlation of diversity at T2 with contact measures at T1") %>% gt::gtsave(here(pipeline, "out/sig_tests_asymetries.html"))

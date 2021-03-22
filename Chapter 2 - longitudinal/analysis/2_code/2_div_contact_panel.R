@@ -17,13 +17,13 @@ pacman::p_install_version(c("haven", "stringr", "purrr", "gt"),
 pacman::p_install_version_gh(c("lukaswallrich/rNuggets"),
                              c("0.1.8"))
 
-source(here("empirical/1_tools/managementFunctions.R"))
+source(here("1_tools/managementFunctions.R"))
 
 
 #Set up pipeline folder if missing
 pipeline <- createPipelineDir(NAME)
-datadir <- "empirical/0_data"
-pipelinedir <- "empirical/3_pipeline"
+datadir <- "0_data"
+pipelinedir <- "3_pipeline"
 
 
 AllCasesWhite <- read_rds(here(pipelinedir, "1_scales/out/WhiteCasesWScales.RDS"))

@@ -4,7 +4,7 @@
 
 ## Plot cross-lagged model
 
-NAME <- '3_plot_div_contact_panel_model' 
+NAME <- '5_plot_div_contact_panel_model' 
 
 # ------------
 # Sources
@@ -25,9 +25,7 @@ pipeline <- createPipelineDir(NAME)
 datadir <- "0_data"
 pipelinedir <- "3_pipeline"
 
-fit_std <- read_rds(here(pipelinedir, "2_div_contact_panel/out/CrossLaggedModel.RDS"))
-
-
+fit_std <- read_rds(here(pipelinedir, "4_div_contact_panel_latent/out/CrossLaggedModel.RDS"))
 
 # ------------
 # Plot model
@@ -60,8 +58,8 @@ IV2DV1s <- "solid"
 IV3DV1c <- fig_coefs %>% filter(lhs == names(DV1), rhs == names(IV3)) %>% extract_coef()
 IV3DV1s <- "solid"
 
-IV1DV2c <- ""
-IV1DV2s <- "invisible"
+IV1DV2c <- fig_coefs %>% filter(lhs == names(DV2), rhs == names(IV1)) %>% extract_coef()
+IV1DV2s <- "solid"
 
 IV2DV2c <- fig_coefs %>% filter(lhs == names(DV2), rhs == names(IV2)) %>% extract_coef()
 IV2DV2s <- "solid"
@@ -75,8 +73,8 @@ IV1IV2s <- "solid"
 IV2IV3c <- fig_coefs %>% filter(lhs == names(IV2), rhs == names(IV3)) %>% extract_coef()
 IV2IV3s <- "solid"
 
-DV1DV2c <- fig_coefs %>% filter(lhs == names(DV1), rhs == names(DV2)) %>% extract_coef()
-DV1DV2s <- "solid"
+# DV1DV2c <- fig_coefs %>% filter(lhs == names(DV1), rhs == names(DV2)) %>% extract_coef()
+# DV1DV2s <- "solid"
 
 DV1DV3c <- fig_coefs %>% filter(lhs == names(DV1), rhs == names(DV3)) %>% extract_coef()
 DV1DV3s <- "solid"
@@ -89,11 +87,11 @@ DV1DV3s <- "solid"
 note <-"" 
 
 grcode <- 
-  glue::glue("digraph {{
+  rNuggets::glue_warn("digraph {{
         
         graph [layout = 'neato',
         outputorder = 'edgesfirst',
-        bgcolor = 'white', rankdir=LR,]
+        bgcolor = 'white', rankdir=LR]
         
         node [fontname = 'Helvetica',
         fontsize = '10',
@@ -107,15 +105,15 @@ grcode <-
         
         
         
-        '1' [label = <{IV1}>, color = 'black', shape = 'rectangle', height = '0.5', width = '1.5', pos = '1,1!']
-        '2' [label = <{IV2}>, color = 'black', shape = 'rectangle', height = '0.5', width = '1.5', pos = '1,-0.5!']
+        '1' [label = <{IV1}>, color = 'black', shape = 'ellipse', height = '0.5', width = '1.5', pos = '1,1!']
+        '2' [label = <{IV2}>, color = 'black', shape = 'ellipse', height = '0.5', width = '1.5', pos = '1,-0.5!']
 
-        '3' [label = <{IV3}>, color = 'black', shape = 'rectangle', height = '0.5', width = '1.5', pos = '1,-2!']
+        '3' [label = <{IV3}>, color = 'black', shape = 'ellipse', height = '0.5', width = '1.5', pos = '1,-2!']
 
 
-        '4' [label = <{DV1}>, color = 'black', shape = 'rectangle', height = '0.5', width = '1.5', pos = '4,1!']
-        '5' [label = <{DV2}>, color = 'black', shape = 'rectangle', height = '0.5', width = '1.5', pos = '4,-0.5!']
-        '6' [label = <{DV3}>, color = 'black', shape = 'rectangle', height = '0.5', width = '1.5', pos = '4,-2!']
+        '4' [label = <{DV1}>, color = 'black', shape = 'ellipse', height = '0.5', width = '1.5', pos = '4,1!']
+        '5' [label = <{DV2}>, color = 'black', shape = 'ellipse', height = '0.5', width = '1.5', pos = '4,-0.5!']
+        '6' [label = <{DV3}>, color = 'black', shape = 'ellipse', height = '0.5', width = '1.5', pos = '4,-2!']
       
         '8' [style = {IV2DV1s}, label = <{IV2DV1c}>  color = 'black', shape = 'plaintext', pos = '2.2,-0.1!']
 
@@ -125,10 +123,10 @@ grcode <-
 
         '9' [style = {IV1IV2s}, label = <{IV1IV2c}>,  color = 'black', shape = 'plaintext', pos = '0.3,0.25!']
         
-        '10' [style = {DV1DV2s}, label = <{DV1DV2c}>, color = 'black', shape = 'plaintext', pos = '4.7,0.25!']
         
         '11' [style = {DV1DV3s}, label = <{DV1DV3c}>, color = 'black', shape = 'plaintext', pos = '4.7,-1.25!']
-        
+ 
+               
         edge [fontname = 'Helvetica',
         fontsize = '10',
         len = '1.5',
@@ -147,8 +145,6 @@ grcode <-
         
         }}")
 
+rNuggets:::.grViz_and_save(grcode, here(pipeline, "out/Model1.svg"))
 
-library(rsvg)
-grViz(grcode) %>%
-  export_svg %>% charToRaw %>% rsvg_png(here(pipeline, "out/Model1.png"), width = 750, height = 500)
 
