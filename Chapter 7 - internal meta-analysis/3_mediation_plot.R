@@ -27,7 +27,7 @@ graphs <- c("standard" = "graph_params.RDS")
 
 purrr::walk2(graphs, names(graphs), function(file, graph_name){
 
-graph_parameters <- read_rds(here(pipelinedir, "mediation_meta", file))
+graph_parameters <- read_rds(here(pipelinedir, "2_mediation_meta_analysis", file))
 
 fmt_param <- function(param) {
   paste0(

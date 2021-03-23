@@ -4,7 +4,7 @@
 
 # Create datafile for mediation meta-analysis
 
-NAME <- "mediation_data_prep"
+NAME <- "1_mediation_data_prep"
 
 # ------------
 # Sources
@@ -48,12 +48,12 @@ meta_data <- tibble::tribble(
   "UK_mediation", "cognitive", "div_att", -.55, 224,
   "UK_mediation", "affective", "neg_att",  .18, 224,
   "UK_mediation", "cognitive", "neg_att",  .21, 224,
-  "DE_mediation", "only", "pos_div", .35, 2618,
-  "DE_mediation", "only", "neg_div",  -.16, 2618,
-  "DE_mediation", "only", "div_att",  -.53, 2618,
-  "DE_mediation", "only", "pos_neg",  .25, 2618,
-  "DE_mediation", "only", "pos_att",  -.43, 2618,
-  "DE_mediation", "only", "neg_att",  .26, 2618
+  "DE_mediation", "only", "pos_div", .34, 2618,
+  "DE_mediation", "only", "neg_div",  -.17, 2618,
+  "DE_mediation", "only", "div_att",  -.52, 2618,
+  "DE_mediation", "only", "pos_neg",  -.27, 2618,
+  "DE_mediation", "only", "pos_att",  -.42, 2618,
+  "DE_mediation", "only", "neg_att",  .27, 2618
 )
 
 # ------------

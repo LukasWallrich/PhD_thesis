@@ -4,7 +4,7 @@
 
 # Run meta-analysis
 
-NAME <- "mediation_meta"
+NAME <- "2_mediation_meta_analysis"
 
 # ------------
 # Sources
@@ -24,7 +24,7 @@ pipelinedir <- "3_outputs"
 notes <- character()
 notes <- c(notes, "Note created:", timestamp(quiet = TRUE))
 
-meta_data <- read_rds(here(pipelinedir, "mediation_data_prep/mediation_meta_data.RDS"))
+meta_data <- read_rds(here(pipelinedir, "1_mediation_data_prep/mediation_meta_data.RDS"))
 
 meta_table <- meta_data %>%  group_by(study) %>%  mutate(N = max(N)) %>% select(-inv_N) %>% tidyr::pivot_wider(names_from = pair, values_from = r)
 
@@ -43,28 +43,33 @@ meta_cor_est <-rma.mv(yi=r, V=inv_N,
                       struct="DIAG",
                       method="REML", test = "t",
                       mods=~factor(pair)%>%forcats::fct_rev()-1)
-summary(meta_cor_est)
+x <- summary(meta_cor_est)
+
+take_note("Summary of correlation matrix step:\n")
+take_note(x)
 
 
 # Variance - from summary(meta_cor_est)
-#           estim    sqrt  k.lvl  fixed    level 
-# tau^2.1    0.0414  0.2035     12     no  div_att 
+#            estim    sqrt  k.lvl  fixed    level 
+# tau^2.1    0.0404  0.2011     12     no  div_att 
 # tau^2.2    0.0000  0.0000      9     no  neg_att 
-# tau^2.3    0.0010  0.0321     10     no  neg_div 
-# tau^2.4    0.0125  0.1118      9     no  pos_att 
+# tau^2.3    0.0006  0.0241     10     no  neg_div 
+# tau^2.4    0.0121  0.1099      9     no  pos_att 
 # tau^2.5    0.0000  0.0000     10     no  pos_div 
-# tau^2.6    0.0179  0.1336      7     no  pos_neg 
+# tau^2.6    0.0148  0.1216      7     no  pos_neg
 
 tau <-tibble(
   level = c("div_att", "neg_att", "neg_div", "pos_att", "pos_div", "pos_neg"),
-  tau = c(0.0414, 0.0000, 0.0010, 0.0125, 0.0000, 0.0179)
+  tau = c(0.0404, 0, 0.0006, 0.0121, 0, 0.0148)
 )
 
-est <- coef(meta_cor_est) %>%
+take_note("Estimated heterogeneity - NB: partly hard-coded!\n")
+
+coef(meta_cor_est) %>%
   set_names(names(.) %>% stringr::str_remove("^.*\\(\\)")) %>%
-  tibble(est = ., level = names(.)) %>%
+  tibble(level = names(.), est = .) %>%
   left_join(tau) %>%
-  mutate(tau_share = tau / est)
+  mutate(tau_share = tau / est) %>% take_note()
 
 meta_acov <- meta_cor_est$vb
 
@@ -102,12 +107,14 @@ meta_SEM <-wls(Cov=meta_cor_matrix,aCov=meta_acov,n=N_tot,
 
 summary(meta_SEM)
 
+take_note("\nIndirect effects:\n")
 summary(meta_SEM) %>%
   extract2("mx.algebras") %>%
   as_tibble(rownames = "param") %>%
   tidyr::separate(param, into = c("effect", "valence")) %>%
   group_by(valence) %>%
-  mutate(share = Estimate / sum(Estimate), total = sum(Estimate))
+  mutate(share = Estimate / sum(Estimate), total = sum(Estimate)) %>%
+  take_note()
 
 graph_params <- summary(meta_SEM) %>% extract2("coefficients") %>% as_tibble(rownames = "label") %>%
   select(label, est = Estimate, ci.lower = lbound, ci.upper = ubound)
@@ -135,7 +142,9 @@ meta_cor_est_India <-rma.mv(yi=r, V=inv_N,
                       struct="DIAG",
                       method="REML", test = "t", btt = "India",
                       mods=~factor(pair)%>%forcats::fct_rev()+India-1)
-summary(meta_cor_est_India)
+
+take_note("Moderation test for India - all correlations:\n")
+summary(meta_cor_est_India) %>% take_note()
 
 meta_cor_est_India <-rma.mv(yi=r, V=inv_N,
                       data=meta_data %>% filter(stringr::str_detect(pair, "div")),
@@ -144,11 +153,12 @@ meta_cor_est_India <-rma.mv(yi=r, V=inv_N,
                       method="REML", test = "t", btt = "India",
                       mods=~factor(pair)%>%forcats::fct_rev()+India-1)
 
-  summary(meta_cor_est_India)
+take_note("Moderation test for India - only relevant correlations:\n")
+summary(meta_cor_est_India) %>% take_note()
 
 # ------------
 # Save outputs
 # ------------
 
 
-#writeLines(notes, here(pipeline, "notes.txt"))
+writeLines(notes, here(pipeline, "notes.txt"))
