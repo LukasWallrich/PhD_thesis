@@ -1,11 +1,11 @@
 Note created:
-##------ Tue Mar 23 22:34:45 2021 ------##
+##------ Tue Mar 23 22:49:37 2021 ------##
 [1] "Summary of correlation matrix step:\n"
 
 Multivariate Meta-Analysis Model (k = 57; method: REML)
 
   logLik  Deviance       AIC       BIC      AICc 
- 38.1472  -76.2945  -40.2945   -5.5216  -18.9195   
+ 38.1483  -76.2967  -40.2967   -5.5238  -18.9217   
 
 Variance Components:
 
@@ -13,9 +13,9 @@ outer factor: study (nlvls = 6)
 inner factor: pair  (nlvls = 6)
 
             estim    sqrt  k.lvl  fixed    level 
-tau^2.1    0.0404  0.2011     12     no  div_att 
+tau^2.1    0.0447  0.2114     12     no  div_att 
 tau^2.2    0.0000  0.0000      9     no  neg_att 
-tau^2.3    0.0006  0.0241     10     no  neg_div 
+tau^2.3    0.0004  0.0193     10     no  neg_div 
 tau^2.4    0.0121  0.1099      9     no  pos_att 
 tau^2.5    0.0000  0.0000     10     no  pos_div 
 tau^2.6    0.0148  0.1216      7     no  pos_neg 
@@ -24,49 +24,42 @@ outer factor: measure (nlvls = 13)
 inner factor: pair    (nlvls = 6)
 
               estim    sqrt  k.lvl  fixed    level 
-gamma^2.1    0.0005  0.0224     12     no  div_att 
+gamma^2.1    0.0007  0.0260     12     no  div_att 
 gamma^2.2    0.0051  0.0711      9     no  neg_att 
-gamma^2.3    0.0105  0.1027     10     no  neg_div 
+gamma^2.3    0.0085  0.0922     10     no  neg_div 
 gamma^2.4    0.0017  0.0411      9     no  pos_att 
-gamma^2.5    0.0161  0.1268     10     no  pos_div 
+gamma^2.5    0.0158  0.1255     10     no  pos_div 
 gamma^2.6    0.0060  0.0772      7     no  pos_neg 
 
 Test for Residual Heterogeneity:
-QE(df = 51) = 771.1904, p-val < .0001
+QE(df = 51) = 762.6757, p-val < .0001
 
 Test of Moderators (coefficients 1:6):
-F(df1 = 6, df2 = 51) = 17.4925, p-val < .0001
+F(df1 = 6, df2 = 51) = 17.5787, p-val < .0001
 
 Model Results:
 
                                             estimate      se 
 factor(pair) %>% forcats::fct_rev()pos_neg   -0.0923  0.0658 
-factor(pair) %>% forcats::fct_rev()pos_div    0.1522  0.0484 
+factor(pair) %>% forcats::fct_rev()pos_div    0.1538  0.0481 
 factor(pair) %>% forcats::fct_rev()pos_att   -0.3447  0.0512 
-factor(pair) %>% forcats::fct_rev()neg_div   -0.1053  0.0420 
+factor(pair) %>% forcats::fct_rev()neg_div   -0.1090  0.0383 
 factor(pair) %>% forcats::fct_rev()neg_att    0.1716  0.0312 
-factor(pair) %>% forcats::fct_rev()div_att   -0.2811  0.0838 
+factor(pair) %>% forcats::fct_rev()div_att   -0.2728  0.0881 
                                                tval    pval 
 factor(pair) %>% forcats::fct_rev()pos_neg  -1.4030  0.1667 
-factor(pair) %>% forcats::fct_rev()pos_div   3.1425  0.0028 
-factor(pair) %>% forcats::fct_rev()pos_att  -6.7273  <.0001 
-factor(pair) %>% forcats::fct_rev()neg_div  -2.5066  0.0154 
+factor(pair) %>% forcats::fct_rev()pos_div   3.1978  0.0024 
+factor(pair) %>% forcats::fct_rev()pos_att  -6.7274  <.0001 
+factor(pair) %>% forcats::fct_rev()neg_div  -2.8468  0.0063 
 factor(pair) %>% forcats::fct_rev()neg_att   5.5070  <.0001 
-factor(pair) %>% forcats::fct_rev()div_att  -3.3532  0.0015 
+factor(pair) %>% forcats::fct_rev()div_att  -3.0965  0.0032 
                                               ci.lb    ci.ub 
-factor(pair) %>% forcats::fct_rev()pos_neg  -0.2243   0.0398 
-factor(pair) %>% forcats::fct_rev()pos_div   0.0550   0.2495 
-factor(pair) %>% forcats::fct_rev()pos_att  -0.4476  -0.2418 
-factor(pair) %>% forcats::fct_rev()neg_div  -0.1897  -0.0210 
-factor(pair) %>% forcats::fct_rev()neg_att   0.1090   0.2341 
-factor(pair) %>% forcats::fct_rev()div_att  -0.4494  -0.1128 
- 
-factor(pair) %>% forcats::fct_rev()pos_neg 
-factor(pair) %>% forcats::fct_rev()pos_div   ** 
-factor(pair) %>% forcats::fct_rev()pos_att  *** 
-factor(pair) %>% forcats::fct_rev()neg_div    * 
-factor(pair) %>% forcats::fct_rev()neg_att  *** 
-factor(pair) %>% forcats::fct_rev()div_att   ** 
+factor(pair) %>% forcats::fct_rev()pos_neg  -0.2243   0.0398      
+factor(pair) %>% forcats::fct_rev()pos_div   0.0572   0.2503   ** 
+factor(pair) %>% forcats::fct_rev()pos_att  -0.4476  -0.2418  *** 
+factor(pair) %>% forcats::fct_rev()neg_div  -0.1859  -0.0321   ** 
+factor(pair) %>% forcats::fct_rev()neg_att   0.1090   0.2341  *** 
+factor(pair) %>% forcats::fct_rev()div_att  -0.4497  -0.0959   ** 
 
 ---
 Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
@@ -74,23 +67,23 @@ Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
 [1] "Estimated heterogeneity - NB: partly hard-coded!\n"
  level   est    tau   tau_share
  pos_neg -0.092 0.015 -0.160   
- pos_div  0.152 0.000  0.000   
+ pos_div  0.154 0.000  0.000   
  pos_att -0.345 0.012 -0.035   
- neg_div -0.105 0.001 -0.006   
+ neg_div -0.109 0.001 -0.006   
  neg_att  0.172 0.000  0.000   
- div_att -0.281 0.040 -0.144   
+ div_att -0.273 0.040 -0.148   
 [1] "\nIndirect effects:\n"
  effect valence lbound Estimate ubound share total 
- ind    pos     -0.070 -0.032   -0.007 0.097 -0.332
- ind    neg      0.001  0.021    0.052 0.145  0.141
- dir    pos     -0.408 -0.300   -0.189 0.903 -0.332
- dir    neg      0.041  0.120    0.197 0.855  0.141
+ ind    pos     -0.070 -0.031   -0.005 0.093 -0.332
+ ind    neg      0.003  0.020    0.051 0.145  0.141
+ dir    pos     -0.409 -0.301   -0.190 0.907 -0.332
+ dir    neg      0.041  0.121    0.197 0.855  0.141
 [1] "Moderation test for India - all correlations:\n"
 
 Multivariate Meta-Analysis Model (k = 57; method: REML)
 
   logLik  Deviance       AIC       BIC      AICc 
- 37.7231  -75.4461  -37.4461   -1.1177  -12.1128   
+ 37.7642  -75.5284  -37.5284   -1.1999  -12.1950   
 
 Variance Components:
 
@@ -98,64 +91,56 @@ outer factor: study (nlvls = 6)
 inner factor: pair  (nlvls = 6)
 
             estim    sqrt  k.lvl  fixed    level 
-tau^2.1    0.0428  0.2069     12     no  div_att 
+tau^2.1    0.0470  0.2167     12     no  div_att 
 tau^2.2    0.0000  0.0000      9     no  neg_att 
-tau^2.3    0.0007  0.0259     10     no  neg_div 
-tau^2.4    0.0092  0.0957      9     no  pos_att 
-tau^2.5    0.0001  0.0104     10     no  pos_div 
-tau^2.6    0.0173  0.1314      7     no  pos_neg 
+tau^2.3    0.0003  0.0179     10     no  neg_div 
+tau^2.4    0.0091  0.0955      9     no  pos_att 
+tau^2.5    0.0001  0.0101     10     no  pos_div 
+tau^2.6    0.0173  0.1315      7     no  pos_neg 
 
 outer factor: measure (nlvls = 13)
 inner factor: pair    (nlvls = 6)
 
               estim    sqrt  k.lvl  fixed    level 
-gamma^2.1    0.0005  0.0223     12     no  div_att 
-gamma^2.2    0.0048  0.0690      9     no  neg_att 
-gamma^2.3    0.0098  0.0992     10     no  neg_div 
+gamma^2.1    0.0007  0.0258     12     no  div_att 
+gamma^2.2    0.0048  0.0689      9     no  neg_att 
+gamma^2.3    0.0078  0.0882     10     no  neg_div 
 gamma^2.4    0.0016  0.0402      9     no  pos_att 
-gamma^2.5    0.0140  0.1184     10     no  pos_div 
+gamma^2.5    0.0136  0.1168     10     no  pos_div 
 gamma^2.6    0.0063  0.0794      7     no  pos_neg 
 
 Test for Residual Heterogeneity:
-QE(df = 50) = 765.1751, p-val < .0001
+QE(df = 50) = 756.7094, p-val < .0001
 
 Test of Moderators (coefficient 7):
-F(df1 = 1, df2 = 50) = 1.8805, p-val = 0.1764
+F(df1 = 1, df2 = 50) = 2.0066, p-val = 0.1628
 
 Model Results:
 
                                             estimate      se 
-factor(pair) %>% forcats::fct_rev()pos_neg   -0.0844  0.0697 
-factor(pair) %>% forcats::fct_rev()pos_div    0.1601  0.0462 
-factor(pair) %>% forcats::fct_rev()pos_att   -0.3369  0.0462 
-factor(pair) %>% forcats::fct_rev()neg_div   -0.0979  0.0415 
-factor(pair) %>% forcats::fct_rev()neg_att    0.1728  0.0305 
-factor(pair) %>% forcats::fct_rev()div_att   -0.2719  0.0864 
-IndiaTRUE                                    -0.0579  0.0422 
+factor(pair) %>% forcats::fct_rev()pos_neg   -0.0842  0.0698 
+factor(pair) %>% forcats::fct_rev()pos_div    0.1618  0.0457 
+factor(pair) %>% forcats::fct_rev()pos_att   -0.3367  0.0461 
+factor(pair) %>% forcats::fct_rev()neg_div   -0.1013  0.0372 
+factor(pair) %>% forcats::fct_rev()neg_att    0.1729  0.0305 
+factor(pair) %>% forcats::fct_rev()div_att   -0.2634  0.0905 
+IndiaTRUE                                    -0.0587  0.0414 
                                                tval    pval 
-factor(pair) %>% forcats::fct_rev()pos_neg  -1.2099  0.2320 
-factor(pair) %>% forcats::fct_rev()pos_div   3.4631  0.0011 
-factor(pair) %>% forcats::fct_rev()pos_att  -7.2913  <.0001 
-factor(pair) %>% forcats::fct_rev()neg_div  -2.3590  0.0223 
-factor(pair) %>% forcats::fct_rev()neg_att   5.6646  <.0001 
-factor(pair) %>% forcats::fct_rev()div_att  -3.1470  0.0028 
-IndiaTRUE                                   -1.3713  0.1764 
+factor(pair) %>% forcats::fct_rev()pos_neg  -1.2076  0.2329 
+factor(pair) %>% forcats::fct_rev()pos_div   3.5365  0.0009 
+factor(pair) %>% forcats::fct_rev()pos_att  -7.3031  <.0001 
+factor(pair) %>% forcats::fct_rev()neg_div  -2.7225  0.0089 
+factor(pair) %>% forcats::fct_rev()neg_att   5.6671  <.0001 
+factor(pair) %>% forcats::fct_rev()div_att  -2.9123  0.0053 
+IndiaTRUE                                   -1.4165  0.1628 
                                               ci.lb    ci.ub 
-factor(pair) %>% forcats::fct_rev()pos_neg  -0.2244   0.0557 
-factor(pair) %>% forcats::fct_rev()pos_div   0.0672   0.2529 
-factor(pair) %>% forcats::fct_rev()pos_att  -0.4296  -0.2441 
-factor(pair) %>% forcats::fct_rev()neg_div  -0.1813  -0.0145 
-factor(pair) %>% forcats::fct_rev()neg_att   0.1116   0.2341 
-factor(pair) %>% forcats::fct_rev()div_att  -0.4454  -0.0984 
-IndiaTRUE                                   -0.1426   0.0269 
- 
-factor(pair) %>% forcats::fct_rev()pos_neg 
-factor(pair) %>% forcats::fct_rev()pos_div   ** 
-factor(pair) %>% forcats::fct_rev()pos_att  *** 
-factor(pair) %>% forcats::fct_rev()neg_div    * 
-factor(pair) %>% forcats::fct_rev()neg_att  *** 
-factor(pair) %>% forcats::fct_rev()div_att   ** 
-IndiaTRUE 
+factor(pair) %>% forcats::fct_rev()pos_neg  -0.2244   0.0559      
+factor(pair) %>% forcats::fct_rev()pos_div   0.0699   0.2536  *** 
+factor(pair) %>% forcats::fct_rev()pos_att  -0.4294  -0.2441  *** 
+factor(pair) %>% forcats::fct_rev()neg_div  -0.1761  -0.0266   ** 
+factor(pair) %>% forcats::fct_rev()neg_att   0.1116   0.2341  *** 
+factor(pair) %>% forcats::fct_rev()div_att  -0.4451  -0.0817   ** 
+IndiaTRUE                                   -0.1419   0.0245      
 
 ---
 Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
@@ -165,7 +150,7 @@ Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
 Multivariate Meta-Analysis Model (k = 32; method: REML)
 
   logLik  Deviance       AIC       BIC      AICc 
- 19.8323  -39.6646  -19.6646   -6.3426   -6.7235   
+ 19.8435  -39.6871  -19.6871   -6.3650   -6.7459   
 
 Variance Components:
 
@@ -173,46 +158,41 @@ outer factor: study (nlvls = 6)
 inner factor: pair  (nlvls = 3)
 
             estim    sqrt  k.lvl  fixed    level 
-tau^2.1    0.0417  0.2043     12     no  div_att 
-tau^2.2    0.0008  0.0284     10     no  neg_div 
-tau^2.3    0.0000  0.0000     10     no  pos_div 
+tau^2.1    0.0460  0.2145     12     no  div_att 
+tau^2.2    0.0005  0.0225     10     no  neg_div 
+tau^2.3    0.0000  0.0002     10     no  pos_div 
 
 outer factor: measure (nlvls = 13)
 inner factor: pair    (nlvls = 3)
 
               estim    sqrt  k.lvl  fixed    level 
-gamma^2.1    0.0005  0.0224     12     no  div_att 
-gamma^2.2    0.0103  0.1017     10     no  neg_div 
-gamma^2.3    0.0152  0.1235     10     no  pos_div 
+gamma^2.1    0.0007  0.0259     12     no  div_att 
+gamma^2.2    0.0083  0.0909     10     no  neg_div 
+gamma^2.3    0.0148  0.1216     10     no  pos_div 
 
 Test for Residual Heterogeneity:
-QE(df = 28) = 607.4263, p-val < .0001
+QE(df = 28) = 598.9565, p-val < .0001
 
 Test of Moderators (coefficient 4):
-F(df1 = 1, df2 = 28) = 0.2491, p-val = 0.6216
+F(df1 = 1, df2 = 28) = 0.3158, p-val = 0.5786
 
 Model Results:
 
                                             estimate      se 
-factor(pair) %>% forcats::fct_rev()pos_div    0.1557  0.0478 
-factor(pair) %>% forcats::fct_rev()neg_div   -0.1025  0.0428 
-factor(pair) %>% forcats::fct_rev()div_att   -0.2768  0.0855 
-IndiaTRUE                                    -0.0271  0.0543 
+factor(pair) %>% forcats::fct_rev()pos_div    0.1576  0.0472 
+factor(pair) %>% forcats::fct_rev()neg_div   -0.1058  0.0388 
+factor(pair) %>% forcats::fct_rev()div_att   -0.2681  0.0897 
+IndiaTRUE                                    -0.0298  0.0530 
                                                tval    pval 
-factor(pair) %>% forcats::fct_rev()pos_div   3.2573  0.0029 
-factor(pair) %>% forcats::fct_rev()neg_div  -2.3925  0.0237 
-factor(pair) %>% forcats::fct_rev()div_att  -3.2358  0.0031 
-IndiaTRUE                                   -0.4991  0.6216 
+factor(pair) %>% forcats::fct_rev()pos_div   3.3362  0.0024 
+factor(pair) %>% forcats::fct_rev()neg_div  -2.7252  0.0110 
+factor(pair) %>% forcats::fct_rev()div_att  -2.9872  0.0058 
+IndiaTRUE                                   -0.5620  0.5786 
                                               ci.lb    ci.ub 
-factor(pair) %>% forcats::fct_rev()pos_div   0.0578   0.2536 
-factor(pair) %>% forcats::fct_rev()neg_div  -0.1903  -0.0147 
-factor(pair) %>% forcats::fct_rev()div_att  -0.4520  -0.1016 
-IndiaTRUE                                   -0.1382   0.0841 
- 
-factor(pair) %>% forcats::fct_rev()pos_div  ** 
-factor(pair) %>% forcats::fct_rev()neg_div   * 
-factor(pair) %>% forcats::fct_rev()div_att  ** 
-IndiaTRUE 
+factor(pair) %>% forcats::fct_rev()pos_div   0.0608   0.2544  ** 
+factor(pair) %>% forcats::fct_rev()neg_div  -0.1853  -0.0263   * 
+factor(pair) %>% forcats::fct_rev()div_att  -0.4519  -0.0842  ** 
+IndiaTRUE                                   -0.1383   0.0788     
 
 ---
 Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1

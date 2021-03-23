@@ -158,7 +158,9 @@ lav_cor <- ("
 library(lavaan)
 cors_group <- lavaan::sem(lav_cor, df_TCN_2018 %>% tidyr::drop_na(), meanstructure = TRUE, group = "Ethn_type")
 cors_group_equal <- lavaan::sem(lav_cor, df_TCN_2018 %>% tidyr::drop_na(), meanstructure = TRUE, group = "Ethn_type", group.equal = c("residual.covariances"))
-anova(cors_group, cors_group_equal)
+
+take_note("TCN 2018: Two group solution by ethnic status")
+anova(cors_group, cors_group_equal) %>% timesaveR:::report_anova() %>% take_note()
 
 cors <- df_TCN_2018 %>% cor_matrix() %>% tidy()
 
@@ -178,10 +180,6 @@ meta_data <- cors %>% mutate(pair = paste(column1, column2, sep = "_"),
 df_TCN_2019 <- read_rds(here::here("../Chapter 6 - diversity field experiment/data_with_conditions.RDS")) %>% 
   select(`Q21-START-E`, `Q22-START-E`, ctPosFreq = `Q16.1-START-E`, ctNegFreq = `Q16.2-START-E`, div_prefer = `Q12-START`, 
          div_better = `Q8-START`, attitude = `Q10-START-E`, Ethnicity = `INFO:E-START`)
-
-df_TCN_2019 <- readxl::read_excel(here::here("../Chapter 6 - diversity field experiment/Impact survey corrected as received.xlsx")) %>% 
-  select(`Q21-START-E`, `Q22-START-E`, ctPosFreq = `Q16.1-START-E`, ctNegFreq = `Q16.2-START-E`, div_prefer = `Q12-START`, div_better = `Q8-START`, attitude = `Q10-START-E`, Ethnicity = `INFO:E-START`)
-
 
 df_TCN_2019 %<>% mutate(Ethn_type = case_when(
   str_detect(Ethnicity, "White|Irish") & !str_detect(Ethnicity, c("Black|Arab|Asian|Pakistani|Bangladeshi|Indian|Chinese|Mixed")) ~ "White",
@@ -216,10 +214,9 @@ lav_cor <- ("
 library(lavaan)
 cors_group <- lavaan::sem(lav_cor, df_TCN_2019 %>% tidyr::drop_na(), group = "Ethn_type")
 cors_group_equal <- lavaan::sem(lav_cor, df_TCN_2019 %>% tidyr::drop_na(), group = "Ethn_type", group.equal = c("residual.covariances"))
-anova(cors_group, cors_group_equal)
 
-
-
+take_note("TCN 2019: Two group solution by ethnic status")
+anova(cors_group, cors_group_equal) %>% timesaveR:::report_anova() %>% take_note()
 
 cors <- df_TCN_2019 %>% select(ctPosFreq, ctNegFreq, val_div_teams, val_div_society, attitude) %>% cor_matrix() %>% tidy()
 
@@ -241,4 +238,4 @@ meta_data$inv_N <- 1/meta_data$N
 
 readr::write_rds(meta_data, here(pipeline, "mediation_meta_data.RDS"))
 
-#writeLines(notes, here(pipeline, "notes.txt"))
+writeLines(notes, here(pipeline, "notes.txt"))

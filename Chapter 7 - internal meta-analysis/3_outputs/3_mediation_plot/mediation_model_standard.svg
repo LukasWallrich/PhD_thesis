@@ -78,8 +78,8 @@
 <g id="node6" class="node">
 <title>a2</title>
 <polygon fill-opacity="0.0" stroke="transparent" points="196.56,-104.4 160.56,-104.4 160.56,-68.4 196.56,-68.4 196.56,-104.4"/>
-<text text-anchor="start" x="165.223" y="-89.4" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#000000">&#45;0.09*</text>
-<text text-anchor="start" x="150.217" y="-77.4" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#000000">[&#45;0.18, &#45;0.01]</text>
+<text text-anchor="start" x="165.223" y="-89.4" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#000000">&#45;0.10*</text>
+<text text-anchor="start" x="150.217" y="-77.4" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#000000">[&#45;0.17, &#45;0.02]</text>
 </g>
 <!-- c1 -->
 <g id="node7" class="node">
@@ -99,8 +99,8 @@
 <g id="node9" class="node">
 <title>b</title>
 <polygon fill-opacity="0.0" stroke="transparent" points="378,-142.56 342,-142.56 342,-106.56 378,-106.56 378,-142.56"/>
-<text text-anchor="start" x="346.663" y="-127.56" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#000000">&#45;0.22*</text>
-<text text-anchor="start" x="331.657" y="-115.56" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#000000">[&#45;0.39, &#45;0.05]</text>
+<text text-anchor="start" x="346.663" y="-127.56" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#000000">&#45;0.21*</text>
+<text text-anchor="start" x="331.657" y="-115.56" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#000000">[&#45;0.39, &#45;0.03]</text>
 </g>
 <!-- cv -->
 <g id="node10" class="node">

@@ -1,0 +1,6 @@
+Note created:
+##------ Tue Mar 23 22:49:29 2021 ------##
+[1] "TCN 2018: Two group solution by ethnic status"
+<em>&chi;</em><sup>2</sup>(20) = 9.62, <em>p</em> = .974
+[1] "TCN 2019: Two group solution by ethnic status"
+<em>&chi;</em><sup>2</sup>(20) = 15.94, <em>p</em> = .721
