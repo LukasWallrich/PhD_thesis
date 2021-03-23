@@ -10,7 +10,8 @@ NAME <- '2_desc_stats' ## Name of the R file goes here (without the file extensi
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(tidyverse, magrittr, here, foreign, survey, srvyr, scatterpie, mitools)
 pacman::p_install_version_gh(c("lukaswallrich/rNuggets"),
-                             c("0.1.8"))
+                             c("0.1.9.1000"))
+pacman::p_load_gh(c("lukaswallrich/timesaveR"))
 
 source(here("managementFunctions.R"))
 
@@ -23,10 +24,10 @@ pipelinedir <- "2_pipeline"
 # Load data
 # ----------------------
 
-resp_B <- read_csv(here(pipelinedir, "1_data_prep", "out", "neighbourhood_choices.csv"))
-ac_svy <- read_rds(here(pipelinedir, "1_data_prep", "out", "ac_svy.RDS"))
-imp_long_list <- read_rds(here(pipelinedir, "1_data_prep", "out", "imp_long_list.RDS"))
-imp_long_mids <- read_rds(here(pipelinedir, "1_data_prep", "out", "imp_long_mids.RDS"))
+resp_B <- read_csv(here(pipelinedir, "1_data_prep", "neighbourhood_choices.csv"))
+ac_svy <- read_rds(here(pipelinedir, "1_data_prep",  "ac_svy.RDS"))
+imp_long_list <- read_rds(here(pipelinedir, "1_data_prep","imp_long_list.RDS"))
+imp_long_mids <- read_rds(here(pipelinedir, "1_data_prep", "imp_long_mids.RDS"))
 
 ac_svy_MI <- svydesign(id=~1, weight=~wt, data=mitools::imputationList(imp_long_list))
 
@@ -41,7 +42,7 @@ svy_mi_mean_sd <- function(design, variable) {
 }
 
 
-sink(here(pipeline, "out", "sample_descriptives.txt"))
+sink(here(pipeline, "sample_descriptives.txt"))
 paste("N=",round(sum(svytable(~respid, design = ac_svy))))
 round(prop.table(svytable(~sex, design = ac_svy)), 3)
 svy_mi_mean_sd(ac_svy_MI, "age")
@@ -52,8 +53,7 @@ sink()
 # Correlation table
 
 var_names <- c(
-"nb_scoreY" = "Neighbourhood approach", 
-"nb_scoreN" = "Neighbourhood avoidance", 
+"nb_shareY" = "Approach intentions", 
 "divprefinstr" = "Valuing diversity",
 "for_att" = "Attitude towards foreigners",
 "leftright" = "Political Orientation",
@@ -62,25 +62,15 @@ var_names <- c(
 "educN" = "Education",
 "Region" = "eastwest", 
 "posCont" = "Positive contact",
-"negCont" = "Negative contact",
-#"contfreq" = "Contact frequency",
-"foreign_neighbours" = "Foreigners in neighbourhood"
+"negCont" = "Negative contact"
 )
 
 cors <- imp_long_list %>% 
   rNuggets::wtd_cor_matrix_mi(wt, var_names = var_names) 
 
 cors %>% 
-  rNuggets::apa_cor_table(filename = here(pipeline, "out", "corTableMultipleImputation.html"), add_title = FALSE)
+  report_cor_table(filename = here(pipeline, "corTableMultipleImputation.html"), add_title = FALSE)
 
-
-walk(c("Valuing diversity", "Attitude towards foreigners", "Neighbourhood approach", "Neighbourhood avoidance"), function(x){
-n<- 2831
-   y <- psych::paired.r(cors$cors["Positive contact", x], cors$cors["Negative contact", x], cors$cors["Positive contact", "Negative contact"], n=n) 
-  print(glue::glue("Difference of correlations with {x}: t({n-3}) = {round(y$t,3)}, p {rNuggets::fmt_p(y$p)}"))   
-
-  
-})
 
 # Cat descriptives table
 
@@ -101,14 +91,14 @@ level_names <- tribble(
 "foreign_neighbours", "(Almost) no foreigners", "(Almost) no foreigners", 
 "foreign_neighbours", "Some foreigners", "Some foreigners", 
 "foreign_neighbours", "Many foreigners", "Many foreigners", 
-"foreign_neighbours", "Mostly foreigners", "Mostly foreigners",
+"foreign_neighbours", "Mostly foreigners", "Mostly foreigners"
 )
 
 
 
-rNuggets::cat_var_table_mi(imp_long_list, nb_scoreY, weights = wt, sex, eastwest, foreign_neighbours, 
+rNuggets::cat_var_table_mi(imp_long_list, nb_shareY, weights = wt, sex, eastwest, foreign_neighbours, 
                  var_names = var_names, level_names = level_names, dv_name = "neighbourhood approach",
-                 filename = here(pipeline, "out", "summaryCategorical.html"))
+                 filename = here(pipeline, "summaryCategorical.html"))
 
 
 
@@ -117,13 +107,12 @@ rNuggets::cat_var_table_mi(imp_long_list, nb_scoreY, weights = wt, sex, eastwest
 
 neighborhood <- c(paste0("ms0", 1:9), paste0("ms", 10:13))
 
-resp_B %>% drop_na() %>% mutate(Q = factor(Q, levels=c("Would want to live there", "Would NOT want to live there"))) %>% ggplot(aes(neighborhood)) +
-  geom_bar(aes(fill = resp)) +
-  scale_x_discrete(labels = neighborhood) +
+resp_B %>% drop_na() %>% mutate(Q = factor(Q, levels=c("Would want to live there", "Would NOT want to live there"))) %>% ggplot(aes(x=neighborhood)) +
+  geom_bar(aes(fill = factor(resp))) +
   labs(title = "Readiness to live in neighbourhoods", x = NULL, y = NULL, fill = "Response") +
-  facet_wrap(~Q, nrow = 2) + jtools::theme_apa() + scale_fill_brewer(palette="Dark2") + scale_x_discrete(labels = 1:13)
+  facet_wrap(~Q, nrow = 2) + jtools::theme_apa() + scale_fill_brewer() + scale_x_discrete(labels = 1:13)
 
-ggsave(here(pipeline, "out", "neighbourhood-all-selections.png"), width = 17, units = "cm")
+ggsave(here(pipeline, "neighbourhood-all-selections.png"), width = 17, units = "cm")
 
 
 
@@ -162,6 +151,6 @@ addSmallLegend <- function(myPlot, pointSize = 0.5, textSize = 3, spaceLegend = 
 addSmallLegend(p, 2, 10, 1) + theme(legend.title = element_blank())
 
 
-ggsave(here(pipeline, "out", "neighbourhood-rejections.png"), width = 30, height = 30, units = "cm")
+ggsave(here(pipeline, "neighbourhood-rejections.png"), width = 30, height = 30, units = "cm")
 
 

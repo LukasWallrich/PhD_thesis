@@ -8,9 +8,10 @@ NAME <- '6_avoidance_mediation_plot' ## Name of the R file goes here (without th
 # Sources
 # ------------
 if (!require("pacman")) install.packages("pacman")
-pacman::p_load(tidyverse, DiagrammeR, DiagrammeRsvg)
+pacman::p_load(tidyverse, DiagrammeR, DiagrammeRsvg, here)
 pacman::p_install_version_gh(c("lukaswallrich/rNuggets"),
                              c("0.1.9.1000"))
+pacman::p_load_gh("lukaswallrich/timesaveR")
 
 source(here("managementFunctions.R"))
 
@@ -23,12 +24,12 @@ pipelinedir <- "2_pipeline"
 # Load data
 # ----------------------
 
-graph_parameters <- read_rds(here(pipelinedir, "5_robustness_checks", "out", "graph_parameters.RDS"))
+graph_parameters <- read_rds(here(pipelinedir, "5_robustness_checks", "graph_parameters.RDS"))
 
 fmt_param <- function(param) {
   paste0(
   sprintf("%.2f",  graph_parameters$est[graph_parameters$label == param]),
-  rNuggets::sigstars(graph_parameters$pvalue[graph_parameters$label == param]))
+  sigstars(graph_parameters$pvalue[graph_parameters$label == param]))
 }
 
 plot_code_edited <- glue::glue("
@@ -126,6 +127,6 @@ CV1->x2  [style=dashed]
  }}
 ")
 
-rNuggets:::.grViz_and_save(plot_code_edited, here(pipeline, "out", "mediation_model.svg"))
+rNuggets:::.grViz_and_save(plot_code_edited, here(pipeline, "mediation_model.svg"))
 
 

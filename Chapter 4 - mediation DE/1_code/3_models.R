@@ -10,6 +10,7 @@ NAME <- '3_models' ## Name of the R file goes here (without the file extension!)
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(tidyverse, magrittr, here, foreign, survey, srvyr, lavaan, lavaan.survey, mice)
 pacman::p_load_gh("lukaswallrich/rNuggets")
+pacman::p_load_gh("lukaswallrich/timesaveR")
 
 source(here("managementFunctions.R"))
 
@@ -22,23 +23,23 @@ pipelinedir <- "2_pipeline"
 # Load data
 # ----------------------
 
-imp_long_list <- read_rds(here(pipelinedir, "1_data_prep", "out", "imp_long_list.RDS"))
-imp_long_mids <- read_rds(here(pipelinedir, "1_data_prep", "out", "imp_long_mids.RDS"))
-ac_svy <- read_rds(here(pipelinedir, "1_data_prep", "out", "ac_svy.RDS"))
+imp_long_list <- read_rds(here(pipelinedir, "1_data_prep", "imp_long_list.RDS"))
+imp_long_mids <- read_rds(here(pipelinedir, "1_data_prep", "imp_long_mids.RDS"))
+ac_svy <- read_rds(here(pipelinedir, "1_data_prep", "ac_svy.RDS"))
 
 # ----------------------
 # Regression model
 # ----------------------
 
 fitimp <- with(imp_long_mids,
-               lm(nb_scoreY ~ divprefinstr + for_att + leftright + eastwest +  age  + sex + educN, weights = wt))
+               lm(nb_shareY ~ divprefinstr + for_att + leftright + eastwest +  age  + sex + educN, weights = wt))
 
 fitimp_std <- with(imp_long_mids,
-               lm_std(nb_scoreY ~ divprefinstr + for_att + leftright + eastwest +  age  + sex + educN, weights = wt))
+               lm_std(nb_shareY ~ divprefinstr + for_att + leftright + eastwest +  age  + sex + educN, weights = wt))
 
 
-fit <- ac_svy$variables %>% mutate(across(c(sex, eastwest), factor)) %>% lm(nb_scoreY ~ divprefinstr + for_att + leftright + eastwest +  age  + sex + educN, ., weights = ac_svy$variables$wt)
-fit_std <- ac_svy$variables %>% mutate(across(c(sex, eastwest), factor)) %>% lm_std(nb_scoreY ~ divprefinstr + for_att + leftright + eastwest +  age  + sex + educN, data = ., weights = ac_svy$variables$wt)
+fit <- ac_svy$variables %>% mutate(across(c(sex, eastwest), factor)) %>% lm(nb_shareY ~ divprefinstr + for_att + leftright + eastwest +  age  + sex + educN, ., weights = ac_svy$variables$wt)
+fit_std <- ac_svy$variables %>% mutate(across(c(sex, eastwest), factor)) %>% lm_std(nb_shareY ~ divprefinstr + for_att + leftright + eastwest +  age  + sex + educN, data = ., weights = ac_svy$variables$wt)
 
 coef_names <- c(
   `(Intercept)` = "(Intercept)",
@@ -53,7 +54,10 @@ coef_names <- c(
   educN = "Education"
 )
 
-rNuggets::lm_with_std(mod = list(fitimp, fit), std_mod = list(fitimp_std, fit_std), model_names = c("Multiple imputation", "Listwise deletion"), coef_map = coef_names, filename = here(pipeline, "First OLS model.html"))
+report_lm_with_std(mod = list(fitimp, fit), mod_std = list(fitimp_std, fit_std), 
+                   model_names = c("Multiple imputation", "Listwise deletion"), 
+                   coef_map = coef_names, 
+                   filename = here(pipeline, "First OLS model.html"))
 
 
 # ----------------------
@@ -63,16 +67,14 @@ imp_long_list_with_dummy <- imp_long_list %>% map(function(x) x$foreign_neighbou
 
 ac_svy_dummy <- ac_svy$variables$foreign_neighbours %>% forcats::fct_recode(none = "(Almost) no foreigners", some = "Some foreigners", many = "Many foreigners", mostly = "Mostly foreigners") %>% psych::dummy.code() %>% data.frame() %>% select(-none) %>% cbind(ac_svy$variables, .)
 
-my_scale <- function(x) c(scale(x))
-
 names_col <- names(imp_long_list_with_dummy[[1]])
 
-imp_long_list_with_dummy_sd <- imp_long_list_with_dummy %>% map(function(x) x %>% mutate_all(as.numeric) %>% mutate_at(vars(-.id, -.imp, -wt), my_scale))
+imp_long_list_with_dummy_sd <- imp_long_list_with_dummy %>% map(function(x) x %>% mutate_all(as.numeric) %>% mutate_at(vars(-.id, -.imp, -wt), rNuggets::scale_blank))
 
-ac_svy_dummy_sd <- ac_svy_dummy %>% haven::zap_labels() %>% mutate_all(as.numeric) %>% mutate_at(vars(-wt), my_scale)
+ac_svy_dummy_sd <- ac_svy_dummy %>% haven::zap_labels() %>% mutate_all(as.numeric) %>% mutate_at(vars(-wt), rNuggets::scale_blank)
 
 model <- (' # direct effect
-             nb_scoreY ~ some + many + mostly + c1*posCont + c2*negCont + b1*divprefinstr + eastwest +  age  + sex + educN + leftright + b2*for_att
+             nb_shareY ~ some + many + mostly + c1*posCont + c2*negCont + b1*divprefinstr + eastwest +  age  + sex + educN + leftright + b2*for_att
              
            # mediator
              divprefinstr ~ some + many + mostly + a1*posCont + a2*negCont + eastwest +  age  + sex + educN + leftright 
@@ -122,16 +124,28 @@ ind_CIs <- map_dfr(ind_effects, function(x) {
   tibble(name = x$name, est.std = y[[1]]$`Point Estimate`, ci.lower = y[[1]]$`95% Confidence Interval`[1], ci.upper = y[[1]]$`95% Confidence Interval`[2], pvalue=mean(abs(y[[2]]-mean(y[[2]]))>abs(y[[1]]$`Point Estimate`)))
 })
 
+res <- parameterestimates(mod_weighted, ci = TRUE) %>%
+  filter(str_detect(lhs, ("^direct|^ind|^total"))) %>%
+  select(name = lhs, est.std = est, ci.lower, ci.upper, pvalue) %>%
+  filter(!name %in% ind_CIs$name) %>%
+  rbind(ind_CIs)
 
-
-res <- parameterestimates(mod_weighted, ci = TRUE) %>% filter(str_detect(lhs, ("^direct|^ind|^total"))) %>% select(name=lhs, est.std = est, ci.lower, ci.upper, pvalue) %>% filter(!name %in% ind_CIs$name) %>% rbind(ind_CIs)
-
-res_tbl <- res %>% tidyr::separate(name, c("type", "pred", "mod"), fill = "right") %>% mutate(type = coalesce(mod, type), fmt = paste(sprintf("%.2f", round(est.std, 2)), rNuggets::sigstars(pvalue), rNuggets:::.fmt_ci(ci.lower, ci.upper, 2))) %>% select(type, pred, fmt) %>% spread(type, fmt) %>% select(pred, direct, everything(), total) %>% gt::gt() %>% gt::cols_label(pred = "Measure") %>% gt::tab_spanner(gt::md("**Paths** (std. coefficients)"), 2:ncol(.[["_data"]])) %>% gt::fmt_markdown(everything()) %>% gt::tab_source_note(gt::md(rNuggets:::.make_stars_note()))
+res_tbl <- res %>%
+  tidyr::separate(name, c("type", "pred", "mod"), fill = "right") %>%
+  mutate(type = coalesce(mod, type), fmt = paste(sprintf("%.2f", est.std, 2), sigstars(pvalue), fmt_ci(ci.lower, ci.upper, 2))) %>%
+  select(type, pred, fmt) %>%
+  spread(type, fmt) %>%
+  select(pred, direct, everything(), total) %>%
+  gt::gt() %>%
+  gt::cols_label(pred = "Measure") %>%
+  gt::tab_spanner(gt::md("**Paths** (std. coefficients)"), 2:ncol(.[["_data"]])) %>%
+  gt::fmt_markdown(everything()) %>%
+  gt::tab_source_note(gt::md(timesaveR:::.make_stars_note()))
 
 res_tbl
 
-res_tbl %>% gt::gtsave(filename = here(pipeline, "out", "mediation.html"))
+res_tbl %>% gt::gtsave(filename = here(pipeline, "mediation.html"))
 
 graph_parameters <- parameterestimates(mod_weighted, ci = TRUE) %>% filter(nchar(label)>0)
 
-write_rds(graph_parameters, here(pipeline, "out", "graph_parameters.RDS"))
+write_rds(graph_parameters, here(pipeline, "graph_parameters.RDS"))

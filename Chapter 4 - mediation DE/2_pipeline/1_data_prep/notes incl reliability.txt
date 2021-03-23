@@ -1,0 +1,20 @@
+Notes from 1_data_prep ---------------------------------
+Number of  exclusions due to citizenship: 250
+Number of additional exclusions due to parentage: 410
+Number of additional exclusions due to no contact: 212
+
+Number of responses considered (all weighted): 2618
+[1] "    \nDescriptives for Instrumental value for diversity (divprefinstr) scale:\nMean: 2.952  SD: 0.717\nCronbach's alpha: .59\n\nThe following items were reverse coded (with min and max values):                        \nma12 (1, 4)"
+[1] "Spearman-Brown correlation for valuing diversity: 0.594"
+[1] "    \nDescriptives for Instrumental value for diversity (for_att) scale:\nMean: 4.356  SD: 1.201\nCronbach's alpha: .80\n\nThe following items were reverse coded (with min and max values):                        \nmp05 (1, 7)\nmp08 (1, 7)\nmp12 (1, 7)"
+ variable           n_miss pct_miss
+ .any_missing       196    0.075   
+ leftright           89    0.034   
+ foreign_neighbours  48    0.018   
+ nb_shareY           45    0.017   
+ divprefinstr        12    0.005   
+ negCont             11    0.004   
+ posCont             10    0.004   
+ age                  5    0.002   
+ educN                1    0.000   
+ for_att              1    0.000   

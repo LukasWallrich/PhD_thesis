@@ -11,8 +11,7 @@ if (!require("pacman")) install.packages("pacman")
 pacman::p_load(tidyverse, magrittr, here, foreign, survey, srvyr, haven)
 pacman::p_install_version(c("jtools", "modelsummary", "stringr", "purrr", "gt"),
                           c("2.1.0", "0.5.1", "1.4.0", "0.3.4", "0.2.1"))
-pacman::p_install_version_gh(c("lukaswallrich/rNuggets"),
-                             c("0.1.8"))
+pacman::p_load_gh("lukaswallrich/timesaveR")
 
 source(here("managementFunctions.R"))
 
@@ -33,7 +32,8 @@ allbus_all_df_NA <- haven::read_sav(allbus_file, user_na = TRUE)
 #Retain different types of missingness for contact variables
 ac <- allbus_all_df_NA %>% select(respid, mc09_with_NAs = mc09, mc10_with_NAs = mc10) %>% right_join(allbus_all_df)
 
-notes <- c(paste0("Notes from ", NAME), "---------------------------------")
+notes <- character()
+take_note(paste0("Notes from ", NAME), "---------------------------------")
 
 # ------------------------------------------------------
 # Coding neighbourhood choice
@@ -71,7 +71,7 @@ resp_B <- rbind(resp_N, resp_Y)
 
 resp_B$resp %<>% recode(GENANNT = "MENTIONED", `NICHT GENANNT` = "NOT MENTIONED")
 
-resp_B %>% write_csv(here(pipeline, "out", "neighbourhood_choices.csv"))
+resp_B %>% write_csv(here(pipeline, "neighbourhood_choices.csv"))
 
 # -----------------------------
 # ... for analysis
@@ -101,6 +101,8 @@ ac %<>% left_join(neighbourhood_scores)
 
 ac %<>% mutate(nb_scoreN = 15-ifelse(nb_scoreY == 13, 14, nb_scoreN))
 
+ac %<>% mutate(nb_shareY = (nb_scoreY-1) * 4/49 , nb_shareN = (nb_scoreN - 1) * 4/49)
+
 # -----------------------------
 # Filter & create survey object
 # -----------------------------
@@ -118,22 +120,13 @@ acF  <- ac_de %>% mutate(across(c(mdm01a, fdm01a), as_factor)) %>% filter((
 ac_with_contact <- acF %>% mutate(across(c(mc09_with_NAs, mc10_with_NAs), haven::as_factor)) %>%
   filter(!(mc09_with_NAs=="KEINE KONTAKTE"&mc10_with_NAs=="KEINE KONTAKTE"))
 
-notes %<>% c("Number of  exclusions due to citizenship:", sum(ac$wghtpew) - sum(ac_de$wghtpew))
-notes %<>% c(paste("Number of additional exclusions due to parentage:", sum(ac_de$wghtpew) - sum(acF$wghtpew)))
-notes %<>% c("Number of additional exclusions due to no contact:", sum(acF$wghtpew) - sum(ac_with_contact$wghtpew))
+take_note("Number of  exclusions due to citizenship:", round(sum(ac$wghtpew) - sum(ac_de$wghtpew)))
+take_note("Number of additional exclusions due to parentage:", round(sum(ac_de$wghtpew) - sum(acF$wghtpew)))
+take_note("Number of additional exclusions due to no contact:", round(sum(acF$wghtpew) - sum(ac_with_contact$wghtpew)))
 
 acF <- ac_with_contact
 
-
-# acDiff <- ac %>% filter(!(
-#   mdm01a %in% c("DEUTSCHLAND", "FRUEHERE DT.OSTGEB.") & fdm01a %in% c("DEUTSCHLAND", "FRUEHERE DT.OSTGEB.") |
-#     is.na(mdm01a) & fdm01a %in% c("DEUTSCHLAND", "FRUEHERE DT.OSTGEB.") |
-#      mdm01a %in% c("DEUTSCHLAND", "FRUEHERE DT.OSTGEB.") & is.na(fdm01a))) %>% filter(german=="JA")
-
-#summary(paste(acDiff$mdm01a, acDiff$fdm01a)%>%factor())
-
-
-notes %<>% c(" ", paste("Number of responses considered (all weighted):", sum(acF$wghtpew)))
+take_note("\nNumber of responses considered (all weighted):", round(sum(acF$wghtpew)))
 
 
 acF$wt <- 0.53335
@@ -149,17 +142,17 @@ ac.w <- acF %>% as_survey(ids = 1, weights = wt)
 ## Diversity opinions
 # ma12: Es ist besser für ein Land, wenn alle Menschen einer gemeinsamen Kultur angehören
 # ma13:  Eine Gesellschaft mit einem hohen Ausmaß an kultureller Vielfalt ist eher befähigt, neue Probleme in Angriff zu nehmen
-# Smaller numbers: higher agreement
+
+# Smaller numbers: higher agreement - so reverse items
+ac.w$variables$ma12 <- 5 - ac.w$variables$ma12
+ac.w$variables$ma13 <- 5 - ac.w$variables$ma13
 
 #Instrumental value of diversity
 scale_items <- c("ma12", "ma13")
-reversed <- c("ma13")
+reversed <- c("ma12")
 
-
-descr <- capture.output(res <- rNuggets::svy_make_scale(ac.w, scale_items, "divprefinstr", 
-                                                        print_hist = FALSE, "Instrumental value for diversity", reversed))
-ac.w <- res
-notes %<>% c(descr)
+take_note(paste(capture.output(ac.w <- svy_make_scale(ac.w, scale_items, reversed = reversed, scale_name = "divprefinstr", 
+                                                        print_hist = FALSE, scale_title = "Instrumental value for diversity")), collapse = "\n"))
 
 #Calc SB reliability
 
@@ -169,18 +162,16 @@ ac.w$variables$ma13num <- as.numeric(ac.w$variables$ma13)
 cor_value <- jtools::svycor(~ma12num+ma13num, ac.w, na.rm = T)[[1]][1,2]
 SB_value <- (abs(cor_value) * 2)/(1 + abs(cor_value))
 
-notes %<>% c(paste0("Spearman-Brown correlation for valuing diversity: ", SB_value))
+take_note(paste0("Spearman-Brown correlation for valuing diversity: ", round_(SB_value, 3)))
 
 #General attitude towards foreigners - did not include items referring to diversity
 
 scale_items <- c("mp02", "mp05", "mp06", "mp07", "mp08", "mp11", "mp12")
 reversed <- c( "mp05", "mp08", "mp12") 
 
-descr <- capture.output(res <- rNuggets::svy_make_scale(ac.w, scale_items, "for_att", 
-                                                        print_hist = FALSE, "Instrumental value for diversity", reversed, r_key = -1))
-ac.w <- res
-notes %<>% c(descr)
-
+take_note(paste(capture.output(ac.w <- svy_make_scale(ac.w, scale_items, scale_name = "for_att", 
+                                                      print_hist = FALSE, scale_title = "Instrumental value for diversity", 
+                                                      reversed = reversed, r_key = -1)), collapse = "\n"))
 # ----------------------
 # Code covariates
 # ----------------------
@@ -200,57 +191,21 @@ ac.w$variables$posCont <- 6 - as.numeric(ac.w$variables$mc09)
 ac.w$variables$negCont <- 6 - as.numeric(ac.w$variables$mc10)
 
 #Foreigners in neighbourhood - merge questions from split survey experiment
-ac.w$variables$mp15bc <- rNuggets::cut_p(ac.w$variables$mp15b %>% as.numeric(), ac.w$variables$mp15a %>% table() %>% prop.table() %>% as.numeric(), fct_levels = levels(as_factor(ac.w$variables$mp15a))[-(1:2)])
+set.seed(300688) #Ties are randomly resolved
+ac.w$variables$mp15bc <- cut_p(ac.w$variables$mp15b %>% as.numeric(), 
+                               rev(ac.w$variables$mp15a %>% table() %>% prop.table() %>% as.numeric()), 
+                               fct_levels = levels(as_factor(ac.w$variables$mp15a))[6:3])
 
 ac.w$variables$foreign_neighbours <- coalesce(as_factor(ac.w$variables$mp15a), ac.w$variables$mp15bc) %>%
-  droplevels() %>% factor(labels = rev(c("(Almost) no foreigners", "Some foreigners", "Many foreigners", "Mostly foreigners")), ordered = T)
+  droplevels() %>%
+  factor(labels = rev(c("(Almost) no foreigners", "Some foreigners", "Many foreigners", "Mostly foreigners")), ordered = T)
 
 # ----------------------
 # Missing data analysis
 # ----------------------
 
-prop_miss <- function(svy_df, ...) {
-  vars <- quos(...)
-
-  any_miss <- svy_df$variables %>%
-    naniar::add_any_miss(!!!vars)%>% 
-    mutate(any_miss_vars = case_when(any_miss_vars == "complete" ~ FALSE, TRUE ~ TRUE)) %>% 
-    pull()
-
-  svy_df_NAs <- svy_df %>% mutate(across(c(!!!vars), is.na))
-  
-    
-  svy_df_NAs$variables$any_missing <- any_miss
-  
-  
-  
-  purrr::map_chr(vars, function(x) {
-    prop <- svytable(x, svy_df_NAs) %>%
-      prop.table() %>%
-      .["TRUE"] %>%
-      rNuggets:::p_pct(2)
-
-    glue::glue("{rlang::as_name(x)}: {prop} missing
-
-            ")
-  }) %>% c(
-  
-  svytable(as.formula("~any_missing"), svy_df_NAs) %>%
-    prop.table() %>%
-    .["TRUE"] %>%
-    rNuggets:::p_pct(2) %>% 
-  
-  {glue::glue("Cases with any missing: {.}
-  
-  ")})
-
-  
-}
-
-
-notes %<>% c(ac.w %>% prop_miss(sex, age, educN, divprefinstr, for_att, leftright, 
-                              nb_scoreY, eastwest, foreign_neighbours, 
-                              posCont, negCont))
+take_note(ac.w %>% svy_miss_var_summary(sex, age, educN, divprefinstr, for_att, leftright, 
+                              nb_shareY, eastwest, foreign_neighbours, posCont, negCont))
 
 
 # ----------------------
@@ -258,7 +213,7 @@ notes %<>% c(ac.w %>% prop_miss(sex, age, educN, divprefinstr, for_att, leftrigh
 # ----------------------
 
 vars_all <- ac.w$variables %>% select(sex, age, educN, divprefinstr, for_att, leftright, 
-                                      nb_scoreN, nb_scoreY, eastwest, foreign_neighbours, 
+                                      nb_shareN, nb_shareY, eastwest, foreign_neighbours, 
                                       posCont, negCont, wt, ma13num, ma12num)
 
 library(mice)
@@ -269,11 +224,11 @@ vars_all$sex %<>% as_factor()
 vars_all$eastwest %<>% as_factor()
 
 vars_all <- vars_all %>% mutate(across(c(age, divprefinstr, for_att, leftright, 
-                                         nb_scoreN, nb_scoreY, 
+                                         nb_shareN, nb_shareY, 
                                          posCont, negCont, wt, ma13num, ma12num), as.numeric))
 
 
-imp <- mice(vars_all, maxit=0)
+imp <- mice(vars_all, maxit=0, seed = 270491)
 
 predM <- imp$predictorMatrix
 meth <- imp$method
@@ -291,7 +246,6 @@ meth[poly] = "polr"
 #meth[log] = "logreg"
 #meth[poly2] = "polyreg"
 
-#meth
 
 imp2 <- mice(vars_all, m = 8, 
              predictorMatrix = predM, 
@@ -301,13 +255,13 @@ imp_long <- mice::complete(imp2, action="long", include = TRUE)
 
 imp_long$educN <- with(imp_long, as.integer(imp_long$educN))
 
-as.mids(imp_long) %>% write_rds(here(pipeline, "out/imp_long_mids.RDS"))
+as.mids(imp_long) %>% write_rds(here(pipeline, "imp_long_mids.RDS"))
 
 imp_long %>% filter(.imp>0) %>% dplyr::group_split(.imp) %>% 
-  write_rds(here(pipeline, "out", "imp_long_list.RDS"))
+  write_rds(here(pipeline, "imp_long_list.RDS"))
 
-ac.w %>% write_rds(here(pipeline, "out/ac_svy.RDS"))
+ac.w %>% write_rds(here(pipeline, "ac_svy.RDS"))
 
-writeLines(notes, here(pipeline, "out/notes incl reliability.txt"))
+writeLines(notes, here(pipeline, "notes incl reliability.txt"))
 
 

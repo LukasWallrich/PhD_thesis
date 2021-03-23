@@ -2,15 +2,14 @@
 # Introduction
 # ------------
 
-NAME <- '5_robustness_checks' ## These are the main dif
+NAME <- '5_robustness_checks' 
 
 # ------------
 # Sources
 # ------------
 if (!require("pacman")) install.packages("pacman")
-pacman::p_load(tidyverse, magrittr, here, foreign, survey, srvyr, lavaan, lavaan.survey, MASS)
-pacman::p_install_version_gh(c("lukaswallrich/rNuggets"),
-                             c("0.1.8"))
+pacman::p_load(tidyverse, magrittr, here, foreign, survey, srvyr, lavaan, lavaan.survey, MASS, mice)
+pacman::p_load_gh("lukaswallrich/timesaveR")
 
 source(here("managementFunctions.R"))
 
@@ -19,23 +18,30 @@ pipeline <- createPipelineDir(NAME)
 datadir <- "0_data"
 pipelinedir <- "2_pipeline"
 
+# ----------------------
+# Load data
+# ----------------------
+
+imp_long_list <- read_rds(here(pipelinedir, "1_data_prep", "imp_long_list.RDS"))
+imp_long_mids <- read_rds(here(pipelinedir, "1_data_prep", "imp_long_mids.RDS"))
+ac_svy <- read_rds(here(pipelinedir, "1_data_prep", "ac_svy.RDS"))
 
 # ----------------------
 # Rejection vs approach
 # ----------------------
 
 fit_Y <- with(imp_long_mids,
-               lm(nb_scoreY ~ ma12num + ma13num + for_att + leftright + eastwest +  age  + sex + educN, weights = wt))
+               lm(nb_shareY ~ ma12num + ma13num + for_att + leftright + eastwest +  age  + sex + educN, weights = wt))
 
 fit_Y_std <- with(imp_long_mids,
-                   lm_std(nb_scoreY ~ ma12num + ma13num + for_att + leftright + eastwest +  age  + sex + educN, weights = wt))
+                   lm_std(nb_shareY ~ ma12num + ma13num + for_att + leftright + eastwest +  age  + sex + educN, weights = wt))
 
 
 fit_N <- with(imp_long_mids,
-              lm(nb_scoreN ~ ma12num + ma13num + for_att + leftright + eastwest +  age  + sex + educN, weights = wt))
+              lm(nb_shareN ~ ma12num + ma13num + for_att + leftright + eastwest +  age  + sex + educN, weights = wt))
 
 fit_N_std <- with(imp_long_mids,
-                  lm_std(nb_scoreN ~ ma12num + ma13num + for_att + leftright + eastwest +  age  + sex + educN, weights = wt))
+                  lm_std(nb_shareN ~ ma12num + ma13num + for_att + leftright + eastwest +  age  + sex + educN, weights = wt))
 
 
 coef_names <- c(
@@ -52,35 +58,33 @@ coef_names <- c(
   educN = "Education"
 )
 
-rNuggets::lm_with_std(mod = list(fit_Y, fit_N), std_mod = list(fit_Y_std, fit_N_std), model_names = c("Neighbourhood selection", "Neighbourhood rejection"), coef_map = coef_names, filename = here(pipeline, "Rejection vs selection.html"))
+report_lm_with_std(mod = list(fit_Y, fit_N), mod_std = list(fit_Y_std, fit_N_std), model_names = c("Neighbourhood selection", "Neighbourhood rejection"), coef_map = coef_names, filename = here(pipeline, "Rejection vs selection.html"))
 
 # ----------------------
 # Ordinal regression
 # ----------------------
 
 fit_ord <- with(imp_long_mids,
-               polr(factor(nb_scoreY, ordered = TRUE) ~ divprefinstr + for_att + leftright + eastwest +  age  + sex + educN, weights = wt, Hess = TRUE))
+               polr(factor(nb_shareY, ordered = TRUE) ~ divprefinstr + for_att + leftright + eastwest +  age  + sex + educN, weights = wt, Hess = TRUE))
+
+#fit_ord_std <- with(imp_long_mids,
+#                polr(factor(nb_shareY, ordered = TRUE) ~ scale(divprefinstr) + scale(for_att) + scale(leftright) + eastwest + scale(age) + sex + scale(educN), weights = wt, Hess = TRUE))
 
 fit_ord_std <- with(imp_long_mids,
-                polr(factor(nb_scoreY, ordered = TRUE) ~ scale(divprefinstr) + scale(for_att) + scale(leftright) + eastwest + scale(age) + sex + scale(educN), weights = wt, Hess = TRUE))
+                polr_std(factor(nb_shareY, ordered = TRUE) ~ divprefinstr + for_att + leftright + eastwest + age + sex + educN, weights = wt))
 
 coef_names <- c(
   `(Intercept)` = "(Intercept)",
   divprefinstr = "Valuing diversity",
-  `scale(divprefinstr)` = "Valuing diversity",
   for_att = "Positive attitude towards foreigners",
-  `scale(for_att)` = "Positive attitude towards foreigners",
   leftright = "Political orientation *(right-wing)*",
-  `scale(leftright)` = "Political orientation *(right-wing)*",
   age = "Age",
-  `scale(age)` = "Age",
   sexFRAU = "Gender *(female)*",
   `eastwestNEUE BUNDESLAENDER` = "Region *(East)*",
-  educN = "Education",
-  `scale(educN)` = "Education"
+  educN = "Education"
 )
 
-polr_with_std(fit_ord, fit_ord_std, coef_map = coef_names, filename = here(pipeline, "ordinal regression.html"))
+report_polr_with_std(fit_ord, fit_ord_std, coef_map = coef_names, filename = here(pipeline, "ordinal regression.html"))
 
 
 # ----------------------
@@ -90,24 +94,40 @@ polr_with_std(fit_ord, fit_ord_std, coef_map = coef_names, filename = here(pipel
 
 # Model for rejection
 
-imp_long_list <- read_rds(here(pipelinedir, "1_data_prep", "out", "imp_long_list.RDS"))
 
-ac_svy <- read_rds(here(pipelinedir, "1_data_prep", "out", "ac_svy.RDS"))
+imp_long_list_with_dummy <- imp_long_list %>% map(function(x) {
+  x$foreign_neighbours %>%
+    forcats::fct_recode(none = "(Almost) no foreigners", some = "Some foreigners", many = "Many foreigners", mostly = "Mostly foreigners") %>%
+    psych::dummy.code() %>%
+    data.frame() %>%
+    dplyr::select(-none) %>%
+    cbind(x, .)
+})
 
-imp_long_list_with_dummy <- imp_long_list %>% map(function(x) x$foreign_neighbours %>% forcats::fct_recode(none = "(Almost) no foreigners", some = "Some foreigners", many = "Many foreigners", mostly = "Mostly foreigners") %>% psych::dummy.code() %>% data.frame() %>% select(-none) %>% cbind(x, .)) 
-
-ac_svy_dummy <- ac_svy$variables$foreign_neighbours %>% forcats::fct_recode(none = "(Almost) no foreigners", some = "Some foreigners", many = "Many foreigners", mostly = "Mostly foreigners") %>% psych::dummy.code() %>% data.frame() %>% select(-none) %>% cbind(ac_svy$variables, .)
+ac_svy_dummy <- ac_svy$variables$foreign_neighbours %>%
+  forcats::fct_recode(none = "(Almost) no foreigners", some = "Some foreigners", many = "Many foreigners", mostly = "Mostly foreigners") %>%
+  psych::dummy.code() %>%
+  data.frame() %>%
+  dplyr::select(-none) %>%
+  cbind(ac_svy$variables, .)
 
 my_scale <- function(x) c(scale(x))
 
 names_col <- names(imp_long_list_with_dummy[[1]])
 
-imp_long_list_with_dummy_sd <- imp_long_list_with_dummy %>% map(function(x) x %>% mutate_all(as.numeric) %>% mutate_at(vars(-.id, -.imp, -wt), my_scale))
+imp_long_list_with_dummy_sd <- imp_long_list_with_dummy %>% map(function(x) {
+  x %>%
+    mutate_all(as.numeric) %>%
+    mutate_at(vars(-.id, -.imp, -wt), my_scale)
+})
 
-ac_svy_dummy_sd <- ac_svy_dummy %>% haven::zap_labels() %>% mutate_all(as.numeric) %>% mutate_at(vars(-wt), my_scale)
+ac_svy_dummy_sd <- ac_svy_dummy %>%
+  haven::zap_labels() %>%
+  mutate_all(as.numeric) %>%
+  mutate_at(vars(-wt), my_scale)
 
 model <- (' # direct effect
-             nb_scoreN ~ some + many + mostly + c1*posCont + c2*negCont + b1*divprefinstr + eastwest +  age  + sex + educN + leftright + b2*for_att
+             nb_shareN ~ some + many + mostly + c1*posCont + c2*negCont + b1*divprefinstr + eastwest +  age  + sex + educN + leftright + b2*for_att
              
            # mediator
              divprefinstr ~ some + many + mostly + a1*posCont + a2*negCont + eastwest +  age  + sex + educN + leftright 
@@ -159,16 +179,30 @@ ind_CIs <- map_dfr(ind_effects, function(x) {
 
 
 
-res <- parameterestimates(mod_weighted, ci = TRUE) %>% filter(str_detect(lhs, ("^direct|^ind|^total"))) %>% select(name=lhs, est.std = est, ci.lower, ci.upper, pvalue) %>% filter(!name %in% ind_CIs$name) %>% rbind(ind_CIs)
+res <- parameterestimates(mod_weighted, ci = TRUE) %>%
+  filter(str_detect(lhs, ("^direct|^ind|^total"))) %>%
+  dplyr::select(name = lhs, est.std = est, ci.lower, ci.upper, pvalue) %>%
+  filter(!name %in% ind_CIs$name) %>%
+  rbind(ind_CIs)
 
-res_tbl <- res %>% tidyr::separate(name, c("type", "pred", "mod"), fill = "right") %>% mutate(type = coalesce(mod, type), fmt = paste(sprintf("%.2f", round(est.std, 2)), rNuggets::sigstars(pvalue), rNuggets:::.fmt_ci(ci.lower, ci.upper, 2))) %>% select(type, pred, fmt) %>% spread(type, fmt) %>% select(pred, direct, everything(), total) %>% gt::gt() %>% gt::cols_label(pred = "Measure") %>% gt::tab_spanner(gt::md("**Paths** (std. coefficients)"), 2:ncol(.[["_data"]])) %>% gt::fmt_markdown(everything()) %>% gt::tab_source_note(gt::md(rNuggets:::.make_stars_note()))
+res_tbl <- res %>%
+  tidyr::separate(name, c("type", "pred", "mod"), fill = "right") %>%
+  mutate(type = coalesce(mod, type), fmt = paste(sprintf("%.2f", round(est.std, 2)), sigstars(pvalue), fmt_ci(ci.lower, ci.upper, 2))) %>%
+  dplyr::select(type, pred, fmt) %>%
+  spread(type, fmt) %>%
+  dplyr::select(pred, direct, everything(), total) %>%
+  gt::gt() %>%
+  gt::cols_label(pred = "Measure") %>%
+  gt::tab_spanner(gt::md("**Paths** (std. coefficients)"), 2:ncol(.[["_data"]])) %>%
+  gt::fmt_markdown(everything()) %>%
+  gt::tab_source_note(gt::md(timesaveR:::.make_stars_note()))
 
 res_tbl
 
-res_tbl %>% gt::gtsave(filename = here(pipeline, "out", "mediation.html"))
+res_tbl %>% gt::gtsave(filename = here(pipeline, "mediation.html"))
 
 graph_parameters <- parameterestimates(mod_weighted, ci = TRUE) %>% filter(nchar(label)>0)
 
-write_rds(graph_parameters, here(pipeline, "out", "graph_parameters.RDS"))
+write_rds(graph_parameters, here(pipeline, "graph_parameters.RDS"))
 
 
