@@ -1,9 +1,15 @@
 ---
 title: "Analysis code for valuing diversity intervention experiment"
 output:
-  html_document:
-    df_print: paged
-    toc: true
+  minidown::mini_document:
+    toc: TRUE
+    toc_float: TRUE
+    code_folding:
+      source: show
+      output: show
+      message: hide
+      warning: hide
+      error: show
 ---
 
 # Setup 
@@ -11,7 +17,7 @@ output:
 ```{r message = FALSE}
 pacman::p_load(tidyverse, magrittr, lme4, lmerTest)
 pacman::p_install_version("emmeans", "1.4.8")
-pacman::p_load_gh("lukaswallrich/rNuggets")
+pacman::p_load_gh("lukaswallrich/timesaveR")
 
 #Contact Lukas Wallrich (l.wallrich@gold.ac.uk | lukas.wallrich@gmail.com) to access the data
 df <- read_rds('data_with_conditions.RDS') 
@@ -20,78 +26,119 @@ df <- read_rds('data_with_conditions.RDS')
 
 ```{r}
 cohen_d <- function(df, DV, group, na.rm = TRUE) {
-    desc <- df %>% rename(group = {{group}}) %>% group_by(group) %>% summarise(M = mean({{DV}}, na.rm = na.rm), var = var({{DV}}, na.rm = na.rm), N = n()) %>% arrange(group)
-    out <- tibble::tribble(
-      ~pair, ~d)  
-    for (i in 1:(nrow(desc)-1)) {
-      for (j in (i+1):nrow(desc)) {
-        pair <- paste(desc$group[i], "&", desc$group[j])
-        sd_pooled <- sqrt(((desc$N[i]-1)*desc$var[i]+(desc$N[j]-1)*desc$var[j])/(desc$N[j]+desc$N[i]-2))
-        d <- (desc$M[i] - desc$M[j]) / sd_pooled
-        out %<>% rbind(tibble::tibble(pair = pair, d = d))
-      }
+  desc <- df %>%
+    rename(group = {{ group }}) %>%
+    group_by(group) %>%
+    summarise(M = mean({{ DV }}, na.rm = na.rm), var = var({{ DV }}, na.rm = na.rm), N = n()) %>%
+    arrange(group)
+  out <- tibble::tribble(
+    ~pair, ~d
+  )
+  for (i in 1:(nrow(desc) - 1)) {
+    for (j in (i + 1):nrow(desc)) {
+      pair <- paste(desc$group[i], "&", desc$group[j])
+      sd_pooled <- sqrt(((desc$N[i] - 1) * desc$var[i] + (desc$N[j] - 1) * desc$var[j]) / (desc$N[j] + desc$N[i] - 2))
+      d <- (desc$M[i] - desc$M[j]) / sd_pooled
+      out %<>% rbind(tibble::tibble(pair = pair, d = d))
     }
-    return(out)
+  }
+  return(out)
 }
 
 hedges_g <- function(df, DV, group, na.rm = TRUE, ci = .95) {
-    df %<>% select({{DV}}, {{group}}) %>% rename(group = {{group}}, DV = {{DV}})
-    if (na.rm) df %<>% tidyr::drop_na()
-    groups <- df$group %>% unique()  %>% sort()
-    out <- tibble::tibble()
-    for (i in 1:(length(groups)-1)) {
-      for (j in (i+1):length(groups)) {
-        pair <- paste(groups[i], "&", groups[j])
-        g <- gethedgesg(df$DV[df$group == groups[j]], df$DV[df$group == groups[i]], coverage = ci)
-        g$pair <- pair
-        out %<>% rbind(g)
-      }
+  df %<>% select({{ DV }}, {{ group }}) %>% rename(group = {{ group }}, DV = {{ DV }})
+  if (na.rm) df %<>% tidyr::drop_na()
+  groups <- df$group %>%
+    unique() %>%
+    sort()
+  out <- tibble::tibble()
+  for (i in 1:(length(groups) - 1)) {
+    for (j in (i + 1):length(groups)) {
+      pair <- paste(groups[i], "&", groups[j])
+      g <- gethedgesg(df$DV[df$group == groups[j]], df$DV[df$group == groups[i]], coverage = ci)
+      g$pair <- pair
+      out %<>% rbind(g)
     }
-    out %>% dplyr::select(pair, dplyr::everything())
+  }
+  out %>% dplyr::select(pair, dplyr::everything())
 }
 
-gethedgesg <-function( x1, x2, design = "between", coverage = 0.95) {
-#http://www.tqmp.org/RegularArticles/vol14-4/p242/
+gethedgesg <- function(x1, x2, design = "between", coverage = 0.95) {
+  # http://www.tqmp.org/RegularArticles/vol14-4/p242/
   # mandatory arguments are x1 and x2, both a vector of data
-require(psych) # for the function harmonic.mean.
-# get basic descriptive statistics
-ns <- c(length(x1),length(x2))
-mns <- c(mean(x1),mean(x2))
-sds <- c(sd(x1),sd(x2))
-# get pairwise statistics
-ntilde <- harmonic.mean(ns)
-dmn <- mns[2]-mns[1]
-sign_diff <- 1
-if(dmn<0) sign_diff <- -1; dmn <- abs(dmn)
-sdp <- sqrt( (ns[1]-1) *sds[1]^2 + (ns[2]-1)*sds[2]^2) / sqrt(ns[1]+ns[2]-2)
-# compute biased Cohen’s d (equation 1)
-cohend <- dmn / sdp
-# compute unbiased Hedges’ g ( equations 2a and 3)
-eta <- ns[1] + ns[2] - 2
-J <- exp ( lgamma(eta/2) - (log(sqrt(eta/2)) + lgamma((eta-1)/2) ) )
-hedgesg <- cohend * J
-# compute noncentrality parameter (equation 5a or 5b depending on the design)
-lambda <- if(design == "between") {
-hedgesg * sqrt( ntilde/2)
-} else {
-r <- cor(x1,x2)
-hedgesg * sqrt( ntilde/(2 * (1-r)) )
-}
-# confidence interval of the hedges g ( equations 6 and 7)
-tlow <- qt(1/2 - coverage/2, df = eta, ncp = lambda )
-thig <- qt(1/2 + coverage/2, df = eta, ncp = lambda )
-dlow <- tlow / lambda * hedgesg
-dhig <- thig / lambda * hedgesg
-# all done! display the results
-(tibble(g = hedgesg, ci.lower = dlow, ci.upper = dhig)*sign_diff) %>% tibble::as_tibble()
-#cat("Hedges’g = ", hedgesg, "\n", coverage*100, "% CI = [", dlow, dhig, "]\n")
+  require(psych) # for the function harmonic.mean.
+  # get basic descriptive statistics
+  ns <- c(length(x1), length(x2))
+  mns <- c(mean(x1), mean(x2))
+  sds <- c(sd(x1), sd(x2))
+  # get pairwise statistics
+  ntilde <- harmonic.mean(ns)
+  dmn <- mns[2] - mns[1]
+  sign_diff <- 1
+  if (dmn < 0) sign_diff <- -1
+  dmn <- abs(dmn)
+  sdp <- sqrt((ns[1] - 1) * sds[1]^2 + (ns[2] - 1) * sds[2]^2) / sqrt(ns[1] + ns[2] - 2)
+  # compute biased Cohen’s d (equation 1)
+  cohend <- dmn / sdp
+  # compute unbiased Hedges’ g ( equations 2a and 3)
+  eta <- ns[1] + ns[2] - 2
+  J <- exp(lgamma(eta / 2) - (log(sqrt(eta / 2)) + lgamma((eta - 1) / 2)))
+  hedgesg <- cohend * J
+  # compute noncentrality parameter (equation 5a or 5b depending on the design)
+  lambda <- if (design == "between") {
+    hedgesg * sqrt(ntilde / 2)
+  } else {
+    r <- cor(x1, x2)
+    hedgesg * sqrt(ntilde / (2 * (1 - r)))
+  }
+  # confidence interval of the hedges g ( equations 6 and 7)
+  tlow <- qt(1 / 2 - coverage / 2, df = eta, ncp = lambda)
+  thig <- qt(1 / 2 + coverage / 2, df = eta, ncp = lambda)
+  dlow <- tlow / lambda * hedgesg
+  dhig <- thig / lambda * hedgesg
+  # all done! display the results
+  (tibble(g = hedgesg, ci.lower = dlow, ci.upper = dhig) * sign_diff) %>% tibble::as_tibble()
+  # cat("Hedges’g = ", hedgesg, "\n", coverage*100, "% CI = [", dlow, dhig, "]\n")
 }
 
-report_anova <- function(x, to_clip = TRUE) {
-  out <- x %>% data.frame() %>% rownames_to_column() %>% mutate(report = glue_warn("{rowname}: F({round(DenDF)}, {NumDF}) = {round_(F.value)}, p {fmt_p(Pr..F.)}"))
+report_anova <- function(x, to_clip = interactive()) {
+  out <- x %>%
+    data.frame() %>%
+    rownames_to_column() %>%
+    mutate(report = glue::glue("{rowname}: F({round(DenDF)}, {NumDF}) = {round_(F.value)}, p {fmt_p(Pr..F.)}"))
   if (to_clip) clipr::write_clip(out$report)
   out
-} 
+}
+
+m_sd <- function(x) {
+  paste0(sprintf("%0.2f", mean(x, na.rm = T)), " (", sprintf("%0.2f", sd(x, na.rm = T)), ")")
+}
+
+```
+
+# Facilitator feedback - implementation check
+
+```{r}
+#Contact Lukas Wallrich (l.wallrich@gold.ac.uk) to access the data
+facilitators <- read_csv('MentorSurvey_diversity.csv') %>% as.data.frame()
+
+facilitators <- facilitators %>% mutate(Activity = factor(Activity), Close = factor(Close), Engaged = case_when(
+  Engaged == "Very disengaged" ~ 1,
+  Engaged == "Rather disengaged" ~ 2,
+  Engaged == "Rather engaged" ~ 3,
+  Engaged == "Very engaged" ~ 4,
+  TRUE ~ NA_real_))
+
+
+table(facilitators$Close) %>% prop.table() %>% `*`(100) %>% round(1)
+
+table(facilitators$Close, facilitators$Activity) %>% prop.table(margin = 2) %>% `*`(100) %>% round(1)
+chisq.test(facilitators$Close, facilitators$Activity)
+
+facilitators %>% group_by(Activity) %>% summarise(mean(Engaged, na.rm = TRUE))
+lm(Engaged ~ Activity, facilitators) %>% summary()
+
+m_sd(facilitators$Engaged)
 
 
 ```
@@ -99,21 +146,17 @@ report_anova <- function(x, to_clip = TRUE) {
 # Data prep and descriptive statistics
 
 ```{r}
-df %<>% mutate(ethn = case_when(
-    str_detect(`INFO:E-END`, "White and") ~ "Mixed",
-    str_detect(`INFO:E-END`, "Mixed") ~ "Mixed",
-    str_detect(`INFO:E-END`, "White") |
-      str_detect(`INFO:E-END`, "Irish") ~ "White",
-    #str_detect(`INFO:E-END`, "Black") ~ "BAME",
-    #`INFO:E-END` %in% c("Indian", "Bangladeshi", "Pakistani") ~ "BAME", 
-    is.na(`INFO:E-END`) & is.na(`INFO:E-START`)~ NA_character_,
-    str_detect(`INFO:E-START`, "White and") ~ "Mixed",
-    str_detect(`INFO:E-START`, "Mixed") ~ "Mixed",
-    str_detect(`INFO:E-START`, "White") |
-      str_detect(`INFO:E-START`, "Irish") ~ "White",
-    str_detect(`INFO:E-START`, fixed("N/A")) ~ NA_character_,
-    T ~ "ME"
-    )) %>% mutate(ethn = factor(ethn))
+df %<>% mutate(ethnicity = paste(`INFO:E-END`, `INFO:E-START`),
+  ethn = case_when(
+    str_detect(ethnicity, "White and") ~ "Mixed",
+    str_detect(ethnicity, "Mixed") ~ "Mixed",
+    str_detect(ethnicity, "White") |
+    str_detect(ethnicity, "Irish") ~ "White",
+    str_detect(ethnicity, "Black|Asian|Roma|Pakistani|Chinese|Bangladeshi|Indian|Arab|other") ~ "ME",
+    TRUE ~ NA_character_))
+
+#Not classified
+df %>% filter(is.na(ethn)) %>% count(ethnicity, sort = TRUE)
 
 #Only TCN delivered cohorts participated in experiment
 df <- df %>% filter(Delivery == "TCN")
@@ -180,14 +223,9 @@ df$comf_discussing <- comf_lookup[df$comf_discussing %>% as.character()]
 df$imp_discussing <- imp_lookup[df$imp_discussing %>% as.character()]
 df$imp_challenging <- imp_lookup[df$imp_challenging %>% as.character()]
 
-
-df %$% cor.test(`comf_discussing`, `imp_discussing`) #Engaging with diversity
-df %$% cor.test(`imp_discussing`, `imp_challenging`) #Importance discussing div and challenging exclusion - I think I intended to pre-register the former
-
-
-df$val_div_society <- rNuggets::make_scale(df, c("Q21-END-E", "Q22-END-E"), "Valuing diversity in society")
-df$val_div_teams <- rNuggets::make_scale(df, c("pref_div_teams", "div_teams_better"), "Valuing diversity in teams")
-df$address_diversity <- rNuggets::make_scale(df, c("comf_discussing", "imp_discussing"), "Addressing diversity in team settings")
+df$val_div_society <- make_scale(df, c("Q21-END-E", "Q22-END-E"), "Valuing diversity in society")
+df$val_div_teams <- make_scale(df, c("pref_div_teams", "div_teams_better"), "Valuing diversity in teams")
+df$address_diversity <- make_scale(df, c("comf_discussing", "imp_discussing"), "Addressing diversity in team settings")
 
 cont_quality_lookup <- c(1:5)
 names(cont_quality_lookup) <- c("Very negative", "Negative", "Neutral", "Positive", "Very positive")
@@ -211,13 +249,12 @@ n_resp <- function(x) {
   sum(!is.na(x))
 }
 
+df$responded_any <- df %>%
+  select(val_div_society, val_div_teams, approach, cont_quality, address_diversity, freq_discuss_differences) %>%
+  {
+    rowSums(!is.na(.)) > 0
+  }
 
-
-df$responded_any <- df  %>%
-    select(val_div_society, val_div_teams, approach, cont_quality, address_diversity, freq_discuss_differences) %>% {rowSums(!is.na(.))>0}
-
-df %>% group_by(Activity1) %>%
- select(val_div_society, val_div_teams, approach, cont_quality, freq_discuss_differences) %>%filter_all(any_vars(!is.na(.))) %>% summarise_all(n_resp)
   
 df$responded <- FALSE
 
@@ -232,11 +269,7 @@ chisq.test(df$responded_any, df$Activity1)
 
 df %<>% filter(responded_any)
 
-
-
 df$Activity1 %>% table()
-
-
 
 #Ethnic composition
 df$ethn %>% table() %>% addmargins()
@@ -244,38 +277,20 @@ df$`INFO:E-END` %>% table() %>% sort(decr = TRUE) %>% head(10)
 df$ethn %>% table() %>% prop.table()
 
 #Run scale functions again for descriptives
-df$val_div_society <- rNuggets::make_scale(df, c("Q21-END-E", "Q22-END-E"), "Valuing diversity in society")
-df$val_div_teams <- rNuggets::make_scale(df, c("pref_div_teams", "div_teams_better"), "Valuing diversity in teams")
-df$address_diversity <- rNuggets::make_scale(df, c("comf_discussing", "imp_discussing"), "Addressing diversity in team settings")
+df$val_div_society <- make_scale(df, c("Q21-END-E", "Q22-END-E"), "Valuing diversity in society")
+df$val_div_teams <- make_scale(df, c("pref_div_teams", "div_teams_better"), "Valuing diversity in teams")
+df$address_diversity <- make_scale(df, c("comf_discussing", "imp_discussing"), "Addressing diversity in team settings")
 
 df  %>%
  select(val_div_society, val_div_teams, approach, cont_quality, address_diversity, freq_discuss_differences) %>% summarise_all(n_resp)
 
-miss_activity <- function(var_char) {
-  print(glue_warn("Chi-sq test for association between missingness of {var_char} and condition:"))
-  out <- chisq.test(is.na(df %>% select(one_of(var_char))%>%pull()), df$Activity1)
-  apa::chisq_apa(out)
-  if(out$p.value < .05) print(table(is.na(df[var_char]), df$Activity1) %>% prop.table(margin = 2) %>% round(2))
-  invisible(out)
-  }
-
-miss_activity("val_div_society")
-miss_activity("approach")
-miss_activity("val_div_teams")
-miss_activity("cont_quality")
-miss_activity("address_diversity")
-miss_activity("freq_discuss_differences")
-
 ```
 
 ```{r}
-m_sd <- function(x) {
-  paste0(sprintf("%0.2f", mean(x, na.rm = T)), " (", sprintf("%0.2f", sd(x, na.rm = T)), ")")
-}
 
 Ns <- df %>% select(`Valuing diverse teams` = val_div_teams, `Valuing diverse societies` = val_div_society, `Contact quality` = cont_quality, `Frequency of discussing differences` = freq_discuss_differences,  `Interest in contact` = approach, `Commitment to address diversity` = address_diversity) %>% summarise_all(~sum(!is.na(.x))) %>% t() %>% as.numeric() %>% tibble(`*N*` = .)
 
- df %>% select(`Valuing diverse teams` = val_div_teams, `Valuing diverse societies` = val_div_society, `Contact valence` = cont_quality, `Frequency of discussing differences` = freq_discuss_differences,  `Interest in contact` = approach, `Commitment to address diversity` = address_diversity) %>% cor_matrix() %>% apa_cor_table(filename = "cor_table.html", extras = Ns)
+ df %>% select(`Valuing diverse teams` = val_div_teams, `Valuing diverse societies` = val_div_society, `Contact valence` = cont_quality, `Frequency of discussing differences` = freq_discuss_differences,  `Interest in contact` = approach, `Commitment to address diversity` = address_diversity) %>% cor_matrix() %>% report_cor_table(filename = "cor_table.html", extras = Ns)
 
 
 
@@ -331,14 +346,16 @@ Non-significant ones not really interesting based on descriptive statistics - no
  outcomes <- c("val_div_teams", "val_div_society", "cont_quality", "approach", "address_diversity", "freq_discuss_differences")
  
  reports <- purrr::map_dfr(outcomes, function(outcome) {
-   out <- lmer(formula(glue_warn("{outcome} ~ Activity1 + (1|wave)")), data = df) %>% anova(type = 2, ddf = "Ken") %>% report_anova() %>% pull(report)
+   out <- lmer(formula(glue::glue("{outcome} ~ Activity1 + (1|wave)")), data = df) %>% anova(type = 2, ddf = "Ken") %>% report_anova() %>% pull(report)
    tibble(outcome = outcome, report = out)
  })
+ 
+ reports
  
    lmer((freq_discuss_differences) ~ Activity1 + (1|wave), data=df) %>% emmeans::emmeans(list(pairwise ~ Activity1), adjust = "holm")
 
 
-  hedges_g(df, freq_discuss_differences, Activity1) %>% filter(!str_detect(pair, "_NA")) %>% mutate(report = glue_warn("{round_(g)} {rNuggets:::.fmt_ci(ci.lower, ci.upper)}"))
+  hedges_g(df, freq_discuss_differences, Activity1) %>% filter(!str_detect(pair, "_NA")) %>% mutate(report = glue::glue("{round_(g)} {fmt_ci(ci.lower, ci.upper)}"))
 
     lmer((freq_discuss_differences) ~ Activity1*ethn + (1|wave), data=df %>% filter(ethn %in% c("White", "ME")))  %>% anova(type = 2, ddf = "Ken") %>% report_anova()
 
@@ -375,8 +392,10 @@ boot_cis <- purrr::map_dfr(boot_types, function(x){
 #Hayes & Sharkow (2013) alternatively recommend MC intervals - again similar
 mc <- semTools::monteCarloMed("a*b", object = fit)
 
+tibble(boot_type = "monte_carlo", ci.lower = mc$`95% Confidence Interval`[1], ci.upper = mc$`95% Confidence Interval`[1]) %>% bind_rows(boot_cis, .)
+
 #Choice might matter because bootstrap results are very skewed - (which is prob usually the case, given how multiplication works?)
- b %>% data.frame() %>% mutate(ind = a*b) %>% ggplot(aes(ind)) + geom_histogram()
+ lavInspect(fit, "coef.boot") %>% data.frame() %>% mutate(ind = a*b) %>% ggplot(aes(ind)) + geom_histogram()
 
 med_model <- tibble::tribble(
   ~type, ~mediator, 
@@ -391,7 +410,7 @@ med_model <- tibble::tribble(
 rNuggets:::plot_mediation(
   IV = "Society-focused <br /> intervention",
   DV = "Valuing diversity <br /> in society", Ms = "Discussing <br /> differences", df = med_model
-)
+) %>% extract2(2)
 
 
 ```
@@ -413,18 +432,11 @@ df %<>% mutate(ActXethn = paste0(Activity1, "_", ethn))
   lmer((approach) ~ Activity1*ethn + (1|wave), data=df %>% filter(ethn %in% c("White", "ME"))) %>% anova(type = 3, ddf = "Ken") %>% report_anova()
   lmer((address_diversity) ~ Activity1*ethn + (1|wave), data=df %>% filter(ethn %in% c("White", "ME"))) %>% anova(type = 3, ddf = "Ken") %>% report_anova()
   
-    
-  #lmer((imp_discussing) ~ Activity1*ethn + (1|wave), data=df %>% filter(ethn %in% c("White", "ME"))) %>% anova(type = 3, ddf = "Ken") %>% report_anova()
-  #lmer((comf_discussing) ~ Activity1*ethn + (1|wave), data=df %>% filter(ethn %in% c("White", "ME"))) %>% anova(type = 3, ddf = "Ken") %>% report_anova()
-
   #Post-hoc
   mod_I <- lmer((val_div_teams) ~ Activity1*ethn + (1|wave), data=df %>% filter(ethn %in% c("White", "ME")))
   emmeans::emmeans(mod_I, list(pairwise ~ Activity1 | ethn), adjust = "holm")
 
   hedges_g(df %>% filter(ethn %in% c("White", "ME")), val_div_teams, ActXethn) %>% filter(!str_detect(pair, "_NA"))
-  
-
-
   
 ```
 
@@ -436,16 +448,13 @@ df %<>% mutate(ActXethn = paste0(Activity1, "_", ethn))
   #Post-hoc
   vars <- c("approach", "cont_quality", "address_diversity", "freq_discuss_differences")
   
-
-
-  
   trends <- purrr::map_dfr(vars, function(x){
-  out <- lmer(formula(glue_warn("{x} ~ Activity1*ethn + (1|wave)")), data=df %>% filter(ethn %in% c("White", "ME"))) %>%
-  emmeans::emmeans(list(pairwise ~ Activity1 | ethn), adjust = "none") %>% extract2(2) %>% data.frame() %>% filter(p.value < .1) %>% transmute(var = x, ethn, contrast, p.value, pair = paste0(str_replace(contrast, " - ", paste0("_", ethn, " & ")), "_", ethn))
+  out <- lmer(formula(glue::glue("{x} ~ Activity1*ethn + (1|wave)")), data=df %>% filter(ethn %in% c("White", "ME"))) %>%
+  emmeans::emmeans(list(pairwise ~ Activity1 | ethn), adjust = "none") %>% extract2(2) %>% data.frame() %>% filter(p.value < .1) %>% transmute(var = x, ethn, X2, p.value, pair = paste0(str_replace(X2, " - ", paste0("_", ethn, " & ")), "_", ethn))
   hedges_g(df, sym(x), ActXethn) %>% left_join(out, .)
   })
   
-  trends %<>% mutate(report = glue_warn("{round_(g)} {rNuggets:::.fmt_ci(ci.lower, ci.upper)}"))
+  trends %<>% mutate(report = glue::glue("{round_(g)} {fmt_ci(ci.lower, ci.upper)}"))
 
   trends
   
@@ -486,9 +495,9 @@ se <- function(x, na.rm=FALSE) {
                             annotations=label), tip_length=0.1, manual = TRUE) #p-values from `trends` tibble
 
 lmer(formula(freq_discuss_differences ~ Activity1*ethn + (1|wave)), data=df %>% filter(ethn %in% c("White", "ME"))) %>%
-  emmeans::emmeans(list(pairwise ~ Activity1 | ethn), adjust = "none") %>% extract2(2) %>% data.frame() %>% dplyr::filter(contrast == "control - society")
+  emmeans::emmeans(list(pairwise ~ Activity1 | ethn), adjust = "none") %>% extract2(2) %>% data.frame() %>% dplyr::filter(X2 == "control - society")
 
-hedges_g(df %>% filter(ethn %in% c("White", "ME")), "freq_discuss_differences", "ActXethn") %>% filter(stringr::str_detect(pair, "^control.*society")) %>% mutate(report = glue_warn("{round_(g)} {rNuggets:::.fmt_ci(ci.lower, ci.upper)}"))
+hedges_g(df %>% filter(ethn %in% c("White", "ME")), "freq_discuss_differences", "ActXethn") %>% filter(stringr::str_detect(pair, "^control.*society")) %>% mutate(report = glue::glue("{round_(g)} {fmt_ci(ci.lower, ci.upper)}"))
  
  #ggsave_show(w=20,h=15)
 ```
@@ -499,11 +508,9 @@ hedges_g(df %>% filter(ethn %in% c("White", "ME")), "freq_discuss_differences", 
 
 ```{r}
 pacman::p_load(ordinal, car, RVAideMemoire, ggeffects)
-Anova(model,
-      type = "II")
 
 df %<>% mutate(pref_div_teams_factor = factor(pref_div_teams), div_teams_better_factor = factor(div_teams_better))
-mydata <- df
+mydata <- df %>% filter(!ethn == "Mixed", !is.na(ethn))
 clmm(pref_div_teams_factor ~ Activity1 + (1|wave), data = mydata) %>% RVAideMemoire::Anova.clmm(type = "II")
 clmm(div_teams_better_factor ~ Activity1 + (1|wave), data = mydata) %>% RVAideMemoire::Anova.clmm(type = "II")
 
@@ -555,12 +562,16 @@ se <- function(x, na.rm=FALSE) {
   sqrt(var(x)/length(x))
 }
 
-   d <- df %>% group_by(Activity1, ethn) %>% summarise(M = mean(val_div_teams, na.rm = T), SE = se(val_div_teams, na.rm = T)) %>% na.omit()
+df <- df %>% mutate(ethn2 = case_when(ethn == "White" ~ "White",
+                                     ethn == "ME" ~ "ME",
+                                     ethn == "Mixed" ~ "ME"))
+
+   d <- df %>% group_by(Activity1, ethn2) %>% summarise(M = mean(val_div_teams, na.rm = T), SE = se(val_div_teams, na.rm = T)) %>% na.omit()
    d1 <- df %>% group_by(Activity1) %>% summarise(M = mean(val_div_teams, na.rm = T), SE = se(val_div_teams, na.rm = T)) %>% na.omit()
-    d1$ethn = "All"
+    d1$ethn2 = "All"
     dp <- dplyr::bind_rows(d, d1)
     
-p <-    dp %>% ggplot(aes(x=Activity1, fill=ethn, y=M)) + 
+p <-    dp %>% ggplot(aes(x=Activity1, fill=ethn2, y=M)) + 
       geom_col(position = "dodge") + theme_classic() + 
       geom_errorbar(aes(ymin = M-SE, ymax = M+SE), width = .2, position=position_dodge(.9)) +
       labs(x = "Condition", y = "Valuing diverse teams", 
@@ -591,17 +602,17 @@ se <- function(x, na.rm = FALSE) {
 }
 
 d <- df %>%
-  group_by(Activity1, ethn) %>%
+  group_by(Activity1, ethn2) %>%
   summarise(M = mean(val_div_society, na.rm = T), SE = se(val_div_teams, na.rm = T)) %>%
   na.omit()
 d1 <- df %>%
   group_by(Activity1) %>%
   summarise(M = mean(val_div_society, na.rm = T), SE = se(val_div_teams, na.rm = T)) %>%
   na.omit()
-d1$ethn <- "All"
+d1$ethn2 <- "All"
 dp <- dplyr::bind_rows(d, d1)
 
-p <- dp %>% ggplot(aes(x = Activity1, fill = ethn, y = M)) +
+p <- dp %>% ggplot(aes(x = Activity1, fill = ethn2, y = M)) +
   geom_col(position = "dodge") +
   theme_classic() +
   geom_errorbar(aes(ymin = M - SE, ymax = M + SE), 
@@ -623,66 +634,4 @@ ggplot2::ggsave("Figure2_societies.png", width = 20, height = 12, units = "cm")
 
 ```
 
-# Facilitator feedback - implementation check
-
-```{r}
-#Contact Lukas Wallrich (l.wallrich@gold.ac.uk) to access the data
-facilitators <- read_csv('MentorSurvey_diversity.csv') %>% as.data.frame()
-
-facilitators <- facilitators %>% mutate(Activity = factor(Activity), Close = factor(Close), Engaged = case_when(
-  Engaged == "Very disengaged" ~ 1,
-  Engaged == "Rather disengaged" ~ 2,
-  Engaged == "Rather engaged" ~ 3,
-  Engaged == "Very engaged" ~ 4,
-  TRUE ~ NA_real_))
-
-
-table(facilitators$Close) %>% prop.table() %>% `*`(100) %>% round(1)
-
-table(facilitators$Close, facilitators$Activity) %>% prop.table(margin = 2) %>% `*`(100) %>% round(1)
-chisq.test(facilitators$Close, facilitators$Activity)
-
-facilitators %>% group_by(Activity) %>% summarise(mean(Engaged, na.rm = TRUE))
-lm(Engaged ~ Activity, facilitators) %>% summary()
-
-m_sd(facilitators$Engaged)
-
-
-```
-
-# For possible later exploration - Bayesian
-
-Bayesian tests could maybe quantify impact of lack of power?
-
-```{r}
-
-df_WME <- df %>% filter(ethn %in% c("White", "ME"))
-df_WME$wave2 <- df_WME$wave %>% factor() %>% as.numeric() %>% factor() #Fix issue with embedded nul in string
-
-pacman::p_load(rstanarm, emmeans, bayestestR, logspline, BayesFactor)
-anovaBF(val_div_teams ~ Activity1*ethn + wave2, data = df_WME %>% drop_na(val_div_teams), whichRandom = "wave2")
-
-summary(aov(val_div_teams ~ Activity1*ethn + Error(wave2/Activity1), data = df_WME))
-
-stan_model <- stan_lmer(approach ~ Activity1*ethn + (1 | wave), data = df_WME)           # Using default priors
-c_activity_main <- pairs(emmeans(stan_model, ~ Activity1))
-em_ethn_simple <- emmeans(stan_model, ~Activity1 * ethn)
-
-c_activity_ethn_interaction <- contrast(em_ethn_simple, interaction = c("pairwise","pairwise"))
-
-c_activity_all <- rbind(c_activity_main, c_activity_ethn_interaction)
-
-describe_posterior(c_activity_all,
-                   estimate = "median", dispersion = TRUE,
-                   ci = .9, ci_method = "hdi",
-                   test = c("bayesfactor"),
-                   bf_prior = stan_model)
-
-bayes_factors <- purrr::map(vars, function(x){
-  print(glue_warn("Bayes factors for {x}:"))
-  out <- anovaBF(formula(glue_warn("{x} ~ Activity1*ethn + wave2")), data = df_WME %>% drop_na(sym(x)), whichRandom = "wave2")
-  print(out)
-})
-
-```
 
