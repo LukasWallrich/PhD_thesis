@@ -1,6 +1,4 @@
-!!! WORK IN PROGRESS !!!
-
-This repository contains data, code and materials for my PhD - and will soon also contain the write-up.
+This repository contains data, code and materials for my PhD - as well as the submitted version of the thesis (the viva is still pending).
 
 ## Structure
 
