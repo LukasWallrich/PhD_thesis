@@ -1,4 +1,4 @@
-This repository contains data, code and materials for my PhD - as well as the submitted version of the thesis (the viva is still pending).
+This repository contains data, code and materials for my PhD - as well as the final version of the thesis.
 
 ## Structure
 
